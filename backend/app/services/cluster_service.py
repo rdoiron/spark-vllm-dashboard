@@ -1,0 +1,2 @@
+class ClusterService:
+    pass

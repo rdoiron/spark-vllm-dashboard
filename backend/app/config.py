@@ -1,0 +1,15 @@
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    spark_docker_path: str = "/home/user/spark-vllm-docker"
+    container_name: str = "vllm_node"
+    head_node_ip: str = "192.168.5.157"
+    vllm_port: int = 8000
+    api_port: int = 8080
+
+    class Config:
+        env_prefix = "SPARK_DASHBOARD_"
+
+
+settings = Settings()
