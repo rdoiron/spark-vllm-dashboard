@@ -92,7 +92,7 @@ async function cancelDownload(modelId: string): Promise<{ success: boolean; mess
   )
 }
 
-export function useInventory() {
+export function useLocalModels() {
   const [models, setModels] = useState<LocalModel[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -119,6 +119,81 @@ export function useInventory() {
     loading,
     error,
     refresh,
+  }
+}
+
+export function useDownloadModel() {
+  const [downloading, setDownloading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const download = useCallback(async (modelId: string, distribute?: boolean) => {
+    setDownloading(true)
+    setError(null)
+    try {
+      const result = await downloadModel(modelId, distribute)
+      if (!result.success) {
+        throw new Error(result.message)
+      }
+      return result
+    } finally {
+      setDownloading(false)
+    }
+  }, [])
+
+  return {
+    downloading,
+    error,
+    download,
+  }
+}
+
+export function useDeleteModel() {
+  const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const remove = useCallback(async (modelId: string) => {
+    setDeleting(true)
+    setError(null)
+    try {
+      const result = await deleteModel(modelId)
+      if (!result.success) {
+        throw new Error(result.message)
+      }
+      return result
+    } finally {
+      setDeleting(false)
+    }
+  }, [])
+
+  return {
+    deleting,
+    error,
+    remove,
+  }
+}
+
+export function useDistributeModel() {
+  const [distributing, setDistributing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const distribute = useCallback(async (modelId: string) => {
+    setDistributing(true)
+    setError(null)
+    try {
+      const result = await distributeModel(modelId)
+      if (!result.success) {
+        throw new Error(result.message)
+      }
+      return result
+    } finally {
+      setDistributing(false)
+    }
+  }, [])
+
+  return {
+    distributing,
+    error,
+    distribute,
   }
 }
 
@@ -151,6 +226,36 @@ export function useDownloadStatus() {
 
   return {
     status,
+    loading,
+    error,
+    refresh,
+  }
+}
+
+export function useInventory() {
+  const [models, setModels] = useState<LocalModel[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const refresh = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await fetchModels()
+      setModels(response.models)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to fetch models")
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    refresh()
+  }, [refresh])
+
+  return {
+    models,
     loading,
     error,
     refresh,

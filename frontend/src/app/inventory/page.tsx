@@ -86,6 +86,10 @@ export default function InventoryPage() {
     }
   }, [showToast])
 
+  const handleLaunch = useCallback((modelId: string) => {
+    showToast(`Launch ${modelId} from the Models page`, "success")
+  }, [showToast])
+
   const filteredModels = models.filter((model) => {
     const matchesSearch = !searchQuery.trim() ||
       model.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -231,6 +235,7 @@ export default function InventoryPage() {
               onDownload={handleDownload}
               onDelete={handleDelete}
               onDistribute={handleDistribute}
+              onLaunch={handleLaunch}
             />
           ))}
         </div>
@@ -240,6 +245,13 @@ export default function InventoryPage() {
         open={showDownloadDialog}
         onOpenChange={setShowDownloadDialog}
         onDownload={handleDownload}
+        onCancel={async (modelId) => {
+          try {
+            await inventoryApi.cancelDownload(modelId)
+          } catch (e) {
+            console.error("Failed to cancel download:", e)
+          }
+        }}
       />
     </div>
   )
