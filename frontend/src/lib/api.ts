@@ -56,11 +56,11 @@ export interface ClusterConfig {
 }
 
 export const configApi = {
-  getConfig: () => api.get<ClusterConfig>("/config"),
+  getConfig: () => api.get<ClusterConfig>("/api/config"),
 
   updateConfig: (config: Partial<ClusterConfig>) =>
-    api.put<ClusterConfig>("/config", config),
+    api.put<ClusterConfig>("/api/config", config),
 
   reloadConfig: () =>
-    api.post<{ message: string; config: ClusterConfig }>("/config/reload"),
+    api.post<{ message: string; config: ClusterConfig }>("/api/config/reload"),
 }
