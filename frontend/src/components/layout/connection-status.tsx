@@ -54,7 +54,7 @@ export function ConnectionStatusProvider({ children, url }: ConnectionStatusProv
     let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 
     const connect = () => {
-      const wsUrl = url || process.env.NEXT_PUBLIC_WS_URL || "ws://192.168.5.157:8080"
+      const wsUrl = url || process.env.NEXT_PUBLIC_WS_URL || "ws://192.168.5.157:8080/api/metrics/stream"
 
       try {
         ws = new WebSocket(wsUrl)
