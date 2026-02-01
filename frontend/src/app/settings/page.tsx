@@ -54,7 +54,9 @@ export default function SettingsPage() {
   const { theme, setTheme } = useTheme()
 
   const {
-    display,
+    theme: displayTheme,
+    metricsRefreshRate,
+    logBufferSize,
     setTheme: setDisplayTheme,
     setMetricsRefreshRate,
     setLogBufferSize,
@@ -249,7 +251,7 @@ export default function SettingsPage() {
               <Label>Theme</Label>
               <div className="flex gap-2">
                 <Button
-                  variant={display.theme === "light" ? "default" : "outline"}
+                  variant={displayTheme === "light" ? "default" : "outline"}
                   size="sm"
                   onClick={() => setDisplayTheme("light")}
                   className="flex-1 transition-all hover:translate-y-1"
@@ -258,7 +260,7 @@ export default function SettingsPage() {
                   Light
                 </Button>
                 <Button
-                  variant={display.theme === "dark" ? "default" : "outline"}
+                  variant={displayTheme === "dark" ? "default" : "outline"}
                   size="sm"
                   onClick={() => setDisplayTheme("dark")}
                   className="flex-1 transition-all hover:translate-y-1"
@@ -267,7 +269,7 @@ export default function SettingsPage() {
                   Dark
                 </Button>
                 <Button
-                  variant={display.theme === "system" ? "default" : "outline"}
+                  variant={displayTheme === "system" ? "default" : "outline"}
                   size="sm"
                   onClick={() => setDisplayTheme("system")}
                   className="flex-1 transition-all hover:translate-y-1"
@@ -284,7 +286,7 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <Label>Metrics Refresh Rate</Label>
               <Select
-                value={display.metricsRefreshRate.toString()}
+                 value={metricsRefreshRate.toString()}
                 onValueChange={(value) => setMetricsRefreshRate(Number(value))}
               >
                 <SelectTrigger>
@@ -299,7 +301,7 @@ export default function SettingsPage() {
                 </SelectContent>
               </Select>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>Current: {formatMetricsRate(display.metricsRefreshRate)}</span>
+                <span>Current: {formatMetricsRate(metricsRefreshRate)}</span>
               </div>
             </div>
           </div>
@@ -308,11 +310,11 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
               <Label>Log Buffer Size</Label>
               <span className="text-sm font-mono text-muted-foreground">
-                {formatBufferSize(display.logBufferSize)} lines
+                {formatBufferSize(logBufferSize)} lines
               </span>
             </div>
             <Slider
-              value={[display.logBufferSize]}
+              value={[logBufferSize]}
               onValueChange={([value]) => setLogBufferSize(value)}
               min={500}
               max={10000}

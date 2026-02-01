@@ -27,17 +27,11 @@ export const useSettingsStore = create<DisplaySettings & DisplaySettingsActions>
     (set) => ({
       ...defaultDisplaySettings,
 
-      setTheme: (theme) => set((state) => ({
-        display: { ...state.display, theme },
-      })),
+      setTheme: (theme) => set({ theme }),
 
-      setMetricsRefreshRate: (metricsRefreshRate) => set((state) => ({
-        display: { ...state.display, metricsRefreshRate },
-      })),
+      setMetricsRefreshRate: (metricsRefreshRate) => set({ metricsRefreshRate }),
 
-      setLogBufferSize: (logBufferSize) => set((state) => ({
-        display: { ...state.display, logBufferSize },
-      })),
+      setLogBufferSize: (logBufferSize) => set({ logBufferSize }),
 
       resetToDefaults: () => set({ ...defaultDisplaySettings }),
     }),
