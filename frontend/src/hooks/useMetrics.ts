@@ -81,7 +81,7 @@ export function useMetricsStream(
       return
     }
 
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080"
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://192.168.5.157:8080"
     const ws = new WebSocket(`${wsUrl}/api/metrics/stream`)
 
     ws.onopen = () => {

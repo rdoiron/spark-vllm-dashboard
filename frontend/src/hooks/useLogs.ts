@@ -48,7 +48,7 @@ export function useLogStream(
       return
     }
 
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080"
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://192.168.5.157:8080"
     const ws = new WebSocket(`${wsUrl}/api/logs/stream`)
 
     ws.onopen = () => {
@@ -148,7 +148,7 @@ export async function fetchLogHistory(
   lines: number = 100,
   level?: string
 ): Promise<LogHistoryResponse> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://192.168.5.157:8080"
   const params = new URLSearchParams({ lines: lines.toString() })
   if (level) {
     params.append("level", level)
@@ -167,7 +167,7 @@ export async function downloadLogs(
   lines: number = 1000,
   filter?: (log: LogEntry) => boolean
 ): Promise<void> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://192.168.5.157:8080"
   const params = new URLSearchParams({ lines: lines.toString() })
 
   const response = await fetch(`${baseUrl}/api/logs/download?${params.toString()}`)
