@@ -14,7 +14,7 @@ export interface LogHistoryResponse {
 }
 
 interface UseLogStreamOptions {
-  maxDataPoints?: number
+  maxBufferSize?: number
   onError?: (error: string) => void
 }
 
@@ -30,7 +30,7 @@ interface UseLogStreamReturn {
 export function useLogStream(
   options: UseLogStreamOptions = {}
 ): UseLogStreamReturn {
-  const { maxDataPoints = 1000, onError } = options
+  const { maxBufferSize = 1000, onError } = options
 
   const [current, setCurrent] = useState<LogEntry | null>(null)
   const [history, setHistory] = useState<LogEntry[]>([])
@@ -63,8 +63,8 @@ export function useLogStream(
 
         setHistory((prev) => {
           const newHistory = [...prev, data]
-          if (newHistory.length > maxDataPoints) {
-            return newHistory.slice(-maxDataPoints)
+          if (newHistory.length > maxBufferSize) {
+            return newHistory.slice(-maxBufferSize)
           }
           return newHistory
         })
@@ -96,7 +96,7 @@ export function useLogStream(
     }
 
     wsRef.current = ws
-  }, [maxDataPoints, onError])
+  }, [maxBufferSize, onError])
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -156,7 +156,10 @@ export async function fetchLogHistory(
   return response.json()
 }
 
-export async function downloadLogs(lines: number = 1000): Promise<void> {
+export async function downloadLogs(
+  lines: number = 1000,
+  filter?: (log: LogEntry) => boolean
+): Promise<void> {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
   const params = new URLSearchParams({ lines: lines.toString() })
 
@@ -177,4 +180,55 @@ export async function downloadLogs(lines: number = 1000): Promise<void> {
   a.click()
   window.URL.revokeObjectURL(url)
   document.body.removeChild(a)
+}
+
+export function useLogFilter(logs: LogEntry[]) {
+  const [filterLevel, setFilterLevel] = useState<Set<string>>(new Set())
+  const [searchQuery, setSearchQuery] = useState("")
+
+  const toggleLevel = useCallback((level: string) => {
+    setFilterLevel((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(level)) {
+        newSet.delete(level)
+      } else {
+        newSet.add(level)
+      }
+      return newSet
+    })
+  }, [])
+
+  const clearFilters = useCallback(() => {
+    setFilterLevel(new Set())
+    setSearchQuery("")
+  }, [])
+
+  const filteredLogs = useCallback(() => {
+    let result = logs
+
+    if (filterLevel.size > 0) {
+      result = result.filter((log) => filterLevel.has(log.level))
+    }
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      result = result.filter(
+        (log) =>
+          log.message.toLowerCase().includes(query) ||
+          log.timestamp.toLowerCase().includes(query)
+      )
+    }
+
+    return result
+  }, [logs, filterLevel, searchQuery])
+
+  return {
+    filterLevel,
+    searchQuery,
+    toggleLevel,
+    setSearchQuery,
+    clearFilters,
+    filteredLogs: filteredLogs(),
+    hasActiveFilters: filterLevel.size > 0 || searchQuery.trim().length > 0,
+  }
 }
