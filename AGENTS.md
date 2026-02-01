@@ -133,14 +133,44 @@ When calling spark-vllm-docker scripts:
 
 ## Environment Variables
 
-Required (see .env.example):
-- `SPARK_DOCKER_PATH`: Path to spark-vllm-docker repository
-- `CONTAINER_NAME`: Docker container name (default: vllm_node)
-- `HEAD_NODE_IP`: Dashboard host IP for CORS
-- `VLLM_PORT`: vLLM server port (default: 8000)
-- `API_PORT`: FastAPI port (default: 8080)
-- `NEXT_PUBLIC_API_URL`: Frontend API base URL
-- `NEXT_PUBLIC_WS_URL`: Frontend WebSocket URL
+### Backend Configuration (prefix: `SPARK_`)
+
+Configuration is managed via Pydantic-settings. Environment variables override defaults:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SPARK_DOCKER_PATH` | `/home/user/spark-vllm-docker` | Path to spark-vllm-docker repository |
+| `SPARK_CONTAINER_NAME` | `vllm_node` | Docker container name |
+| `SPARK_HEAD_NODE_IP` | `192.168.5.157` | Head node IP address |
+| `SPARK_WORKER_NODE_IPS` | `192.168.5.212` | Worker node IPs (comma-separated) |
+| `SPARK_VLLM_PORT` | `8000` | vLLM server port |
+| `SPARK_API_PORT` | `8080` | Backend API port |
+
+Example:
+```bash
+SPARK_DOCKER_PATH=/home/ryan/spark-vllm-docker uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+```
+
+### Frontend Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8080` | Backend API URL |
+| `NEXT_PUBLIC_WS_URL` | `ws://localhost:8080` | WebSocket URL |
+
+Set in `frontend/.env` file.
+
+### Configuration Persistence
+
+Cluster configuration is stored in:
+- **Backend**: SQLite database at `~/.spark-dashboard/profiles.db` (table: `config`)
+- **Frontend**: localStorage for display preferences (theme, refresh rate, etc.)
+
+Users can configure settings via the Settings page in the dashboard or via the API:
+```bash
+curl http://localhost:8080/api/config  # GET config
+curl -X PUT http://localhost:8080/api/config -H "Content-Type: application/json" -d '{"spark_docker_path": "/new/path"}'
+```
 
 ## Development Workflow
 

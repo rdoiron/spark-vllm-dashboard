@@ -14,6 +14,8 @@ A web-based management dashboard for controlling vLLM inference on a DGX Spark c
 - Docker & Docker Compose
 - Access to the spark-vllm-docker repository
 - A DGX Spark cluster (2-node setup: head + worker)
+- Python 3.11+ for backend
+- Node.js 18+ for frontend
 
 ## Quick Start
 
@@ -21,31 +23,45 @@ A web-based management dashboard for controlling vLLM inference on a DGX Spark c
 
 ```bash
 # Clone the repository
-git clone <your-repo-url>
+git clone https://github.com/rdoiron/spark-vllm-dashboard.git
 cd spark-vllm-dashboard
+```
 
-# Copy environment template
+### 2. Configure Frontend Environment
+
+Copy and edit the frontend environment file:
+
+```bash
+cd frontend
 cp .env.example .env
 ```
 
-### 2. Configure Environment
-
-Edit `.env` with your configuration:
+Edit `.env` with your cluster configuration:
 
 ```bash
-# Path to spark-vllm-docker repository
-SPARK_DASHBOARD_SPARK_DOCKER_PATH=/path/to/your/spark-vllm-docker
-
-# Container name (usually vllm_node)
-SPARK_DASHBOARD_CONTAINER_NAME=vllm_node
-
-# Cluster configuration
-SPARK_DASHBOARD_HEAD_NODE_IP=192.168.5.157
-SPARK_DASHBOARD_VLLM_PORT=8000
-SPARK_DASHBOARD_API_PORT=8080
+# API URL for backend (update for your cluster)
+NEXT_PUBLIC_API_URL=http://192.168.5.157:8080
+NEXT_PUBLIC_WS_URL=ws://192.168.5.157:8080
 ```
 
-### 3. Start Services
+### 3. Configure Backend Environment
+
+The backend reads configuration from:
+1. Environment variables (prefixed with `SPARK_`)
+2. Database (for user-configured settings)
+3. Defaults
+
+Set the spark-vllm-docker path when starting:
+
+```bash
+cd backend
+source venv/bin/activate
+SPARK_DOCKER_PATH=/home/ryan/spark-vllm-docker uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+```
+
+### 4. Start Services
+
+**Option A: Docker Compose (production)**
 
 ```bash
 # Build and start all services
@@ -55,11 +71,58 @@ docker compose up -d
 docker compose logs -f
 ```
 
-### 4. Access the Dashboard
+**Option B: Manual (development)**
 
-- **Frontend**: http://localhost:3000
+```bash
+# Terminal 1: Backend
+cd backend
+source venv/bin/activate
+SPARK_DOCKER_PATH=/path/to/spark-vllm-docker uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+
+# Terminal 2: Frontend
+cd frontend
+npm run dev
+```
+
+### 5. Access the Dashboard
+
+- **Frontend**: http://localhost:3000 (or http://192.168.5.157:3001 on cluster)
 - **Backend API**: http://localhost:8080
 - **API Docs**: http://localhost:8080/docs
+
+## Configuration
+
+### Cluster Settings
+
+Cluster configuration is managed through the Settings page in the dashboard or via the API:
+
+```bash
+# Get current config
+curl http://localhost:8080/api/config
+
+# Update config
+curl -X PUT http://localhost:8080/api/config \
+  -H "Content-Type: application/json" \
+  -d '{"spark_docker_path": "/path/to/spark-vllm-docker"}'
+```
+
+### Environment Variables
+
+**Backend (prefix: `SPARK_`):**
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SPARK_DOCKER_PATH` | `/home/user/spark-vllm-docker` | Path to spark-vllm-docker repo |
+| `SPARK_CONTAINER_NAME` | `vllm_node` | Docker container name |
+| `SPARK_HEAD_NODE_IP` | `192.168.5.157` | Head node IP address |
+| `SPARK_WORKER_NODE_IPS` | `192.168.5.212` | Worker node IPs (comma-separated) |
+| `SPARK_VLLM_PORT` | `8000` | vLLM server port |
+| `SPARK_API_PORT` | `8080` | Backend API port |
+
+**Frontend:**
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8080` | Backend API URL |
+| `NEXT_PUBLIC_WS_URL` | `ws://localhost:8080` | WebSocket URL |
 
 ## Development
 
@@ -71,7 +134,7 @@ cd frontend
 # Install dependencies
 npm install
 
-# Start dev server (port 3000)
+# Start dev server
 npm run dev
 
 # Type checking
@@ -96,10 +159,10 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Start dev server (port 8080) with hot reload
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+# Start dev server with hot reload
+SPARK_DOCKER_PATH=/path/to/spark-vllm-docker uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
 
-# Testing
+# Run tests
 python -m pytest
 ```
 
@@ -113,16 +176,19 @@ spark-vllm-dashboard/
 │   │   ├── config.py         # Pydantic-settings configuration
 │   │   ├── routers/          # API route handlers
 │   │   │   ├── cluster.py    # Cluster operations
+│   │   │   ├── config.py     # Config management (NEW)
 │   │   │   ├── model.py      # Model management
 │   │   │   ├── metrics.py    # Real-time metrics
 │   │   │   ├── logs.py       # Log streaming
 │   │   │   └── profiles.py   # Configuration profiles
 │   │   ├── services/         # Business logic
 │   │   │   ├── cluster_service.py
+│   │   │   ├── config_service.py  # Config management (NEW)
 │   │   │   ├── vllm_service.py
 │   │   │   ├── metrics_service.py
 │   │   │   └── log_service.py
-│   │   └── models/           # Pydantic models
+│   │   ├── models/           # Pydantic models
+│   │   └── db/               # Database layer
 │   ├── Dockerfile
 │   └── requirements.txt
 │
@@ -131,6 +197,7 @@ spark-vllm-dashboard/
 │   │   ├── app/              # Next.js App Router pages
 │   │   │   ├── layout.tsx    # Root layout with providers
 │   │   │   ├── page.tsx      # Dashboard home
+│   │   │   ├── settings/     # Settings page
 │   │   │   ├── globals.css   # Tailwind + CSS variables
 │   │   ├── components/
 │   │   │   ├── layout/       # Layout components
@@ -139,7 +206,7 @@ spark-vllm-dashboard/
 │   │   │   └── ui/           # shadcn/ui components
 │   │   ├── lib/              # Utilities
 │   │   │   ├── api.ts        # API client
-│   │   │   └── utils.ts      # Utility functions
+│   │   │   └── settings-store.ts  # Zustand settings store
 │   │   └── hooks/            # Custom hooks
 │   ├── Dockerfile
 │   ├── tailwind.config.ts
@@ -148,7 +215,7 @@ spark-vllm-dashboard/
 ├── docker-compose.yml
 ├── .env.example
 ├── .gitignore
-├── AGENTS.md                  # Development guide for agents
+├── AGENTS.md                 # Development guide for agents
 └── README.md
 ```
 
@@ -158,10 +225,11 @@ spark-vllm-dashboard/
 - Start/stop the vLLM cluster
 - View cluster status and node health
 - Real-time cluster metrics
+- Configuration persisted in SQLite database
 
 ### Model Management
 - Launch vLLM models with various configurations
-- Support for model presets (GLM-4.7-AWQ, MiniMax-M2.1-AWQ)
+- Support for model presets
 - Model configuration profiles
 
 ### Real-time Monitoring
@@ -179,14 +247,11 @@ spark-vllm-dashboard/
 - Preset management for common use cases
 - SQLite persistence
 
-## Configuration Presets
-
-Default model configurations:
-
-| Model | Quantization | GPU Memory |
-|-------|--------------|------------|
-| GLM-4.7-AWQ | AWQ | ~48GB |
-| MiniMax-M2.1-AWQ | AWQ | ~48GB |
+### Settings Page
+- Configure spark-vllm-docker path
+- Set container name and node IPs
+- Adjust display preferences (theme, refresh rates)
+- Settings persist in database and localStorage
 
 ## API Endpoints
 
@@ -194,6 +259,12 @@ Default model configurations:
 - `GET /api/cluster/status` - Get cluster status
 - `POST /api/cluster/start` - Start cluster
 - `POST /api/cluster/stop` - Stop cluster
+- `GET /api/cluster/nodes` - Get node health status
+
+### Configuration
+- `GET /api/config` - Get current configuration
+- `PUT /api/config` - Update configuration
+- `POST /api/config/reload` - Reload configuration without restart
 
 ### Model
 - `GET /api/model/list` - List available models
@@ -218,11 +289,12 @@ Default model configurations:
 ## Troubleshooting
 
 ### Port Conflicts
-If ports 3000 or 8080 are in use, modify `.env`:
+If ports are in use, modify the frontend `.env`:
 ```bash
-SPARK_DASHBOARD_API_PORT=8081
 NEXT_PUBLIC_API_URL=http://localhost:8081
 ```
+
+And restart the backend on a different port if needed.
 
 ### Docker Permissions
 Ensure your user has Docker permissions:
@@ -232,7 +304,15 @@ newgrp docker
 ```
 
 ### Cluster Not Responding
-Check the spark-vllm-docker path in `.env` and ensure the repository is accessible.
+1. Check the spark-vllm-docker path in Settings or via API:
+   ```bash
+   curl http://localhost:8080/api/config
+   ```
+2. Ensure the path exists and `launch-cluster.sh` is present
+3. Verify the backend can access the path
+
+### Frontend Can't Reach Backend
+Check the `NEXT_PUBLIC_API_URL` in `frontend/.env` and ensure the backend is running.
 
 ## License
 
