@@ -11,11 +11,13 @@ import {
   Settings,
   User,
   FolderOpen,
+  Database,
 } from "lucide-react"
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Models", href: "/models", icon: Box },
+  { name: "Inventory", href: "/inventory", icon: Database },
   { name: "Profiles", href: "/profiles", icon: FolderOpen },
   { name: "Metrics", href: "/metrics", icon: LineChart },
   { name: "Logs", href: "/logs", icon: FileText },

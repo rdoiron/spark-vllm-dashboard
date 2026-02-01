@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import cluster, model, metrics, logs, profiles
+from app.routers import cluster, model, metrics, logs, profiles, inventory
 from app.db.database import init_database
 from app.services.profile_service import seed_default_profiles
 
@@ -48,6 +48,7 @@ app.include_router(model.router, prefix="/api")
 app.include_router(metrics.router, prefix="/api")
 app.include_router(logs.router, prefix="/api")
 app.include_router(profiles.router, prefix="/api")
+app.include_router(inventory.router, prefix="/api")
 
 
 @app.get("/")
