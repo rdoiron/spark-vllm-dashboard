@@ -65,9 +65,9 @@ export default function Home() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground">Overview of your vLLM cluster</p>
         </div>
         <Button variant="outline" onClick={handleRefresh} disabled={loading}>
@@ -80,11 +80,11 @@ export default function Home() {
         </Button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-1">
+      <div className="grid gap-6">
+        <div className="w-full">
           <ErrorBoundary
             fallback={
-              <Card className="h-full">
+              <Card>
                 <CardHeader>
                   <CardTitle>Cluster Status</CardTitle>
                   <CardDescription>Unable to load cluster status</CardDescription>
@@ -102,25 +102,25 @@ export default function Home() {
           </ErrorBoundary>
         </div>
 
-        <div className="lg:col-span-2">
-          <Card className="h-full transition-smooth hover:shadow-md">
+        <div className="w-full">
+          <Card className="transition-smooth hover:shadow-md">
             <CardHeader>
               <CardTitle>Quick Actions</CardTitle>
               <CardDescription>Common cluster operations</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <Button variant="secondary" className="w-full justify-start transition-all hover:translate-x-1">
                   <Play className="mr-2 h-4 w-4" />
-                  Start All Services
+                  Start All
                 </Button>
                 <Button variant="secondary" className="w-full justify-start transition-all hover:translate-x-1">
                   <Square className="mr-2 h-4 w-4" />
-                  Stop All Services
+                  Stop All
                 </Button>
                 <Button variant="outline" className="w-full justify-start transition-all hover:translate-x-1">
                   <Server className="mr-2 h-4 w-4" />
-                  Restart Services
+                  Restart
                 </Button>
                 <Button variant="outline" className="w-full justify-start transition-all hover:translate-x-1">
                   <FileText className="mr-2 h-4 w-4" />
@@ -132,7 +132,7 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="transition-smooth hover:shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Models</CardTitle>
@@ -179,7 +179,7 @@ export default function Home() {
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {placeholders.map((item) => (
           <Card key={item.title} className="cursor-pointer hover:bg-muted/50 transition-all hover:translate-y-1">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -199,7 +199,7 @@ export default function Home() {
           <CardTitle>Settings</CardTitle>
           <CardDescription>Quick access to cluster configuration</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
+        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Button variant="outline" className="justify-start transition-all hover:translate-x-1">
             <Settings className="mr-2 h-4 w-4" />
             Cluster Configuration

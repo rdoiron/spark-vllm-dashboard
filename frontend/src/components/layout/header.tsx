@@ -9,23 +9,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ConnectionBadge } from "@/components/layout/connection-status"
-import { Moon, Sun, Monitor, Bell } from "lucide-react"
+import { Moon, Sun, Monitor, Menu } from "lucide-react"
 
 export function Header() {
   const { setTheme } = useTheme()
 
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-background px-6 transition-smooth">
-      <div className="flex items-center gap-4">
-        <h1 className="text-xl font-semibold">Dashboard</h1>
-      </div>
-      <div className="flex items-center gap-4">
+    <header className="flex h-16 items-center justify-between border-b bg-background px-4 md:px-6 transition-smooth">
+      <div className="flex items-center gap-4" />
+      <div className="flex items-center gap-2">
         <ConnectionBadge />
         <Button variant="ghost" size="icon" className="relative transition-fast hover:bg-muted">
-          <Bell className="h-4 w-4" />
-          <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white animate-pulse">
-            3
-          </span>
+          <Moon className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <Sun className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+          <span className="sr-only">Toggle theme</span>
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
