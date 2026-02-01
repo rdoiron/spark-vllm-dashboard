@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback } from "react"
 import { useInventory, useDownloadStatus, inventoryApi, LocalModel, DownloadStatus } from "@/hooks/useInventory"
+import { toastSuccess, toastError } from "@/hooks/use-toast"
 import { ModelCard, ModelStats } from "@/components/inventory/model-card"
 import { DownloadDialog } from "@/components/inventory/download-dialog"
 import { Button } from "@/components/ui/button"
@@ -9,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { ConnectionBadge } from "@/components/layout/connection-status"
 import {
   Select,
   SelectContent,
@@ -26,6 +28,7 @@ import {
   HardDrive,
   Database,
   Share2,
+  AlertCircle,
 } from "lucide-react"
 
 export default function InventoryPage() {
@@ -34,26 +37,20 @@ export default function InventoryPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [filterQuantization, setFilterQuantization] = useState<string>("ALL")
   const [showDownloadDialog, setShowDownloadDialog] = useState(false)
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
-
-  const showToast = useCallback((message: string, type: "success" | "error") => {
-    setToast({ message, type })
-    setTimeout(() => setToast(null), 3000)
-  }, [])
 
   const handleDownload = useCallback(async (modelId: string, distribute?: boolean) => {
     try {
       const response = await inventoryApi.downloadModel(modelId, distribute)
       if (response.success) {
-        showToast(`Download started for ${modelId}`, "success")
+        toastSuccess(`Download started for ${modelId}`)
         refreshDownloadStatus()
       } else {
-        showToast(response.message, "error")
+        toastError(response.message)
       }
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Download failed", "error")
+      toastError(e instanceof Error ? e.message : "Download failed")
     }
-  }, [refreshDownloadStatus, showToast])
+  }, [refreshDownloadStatus])
 
   const handleDelete = useCallback(async (modelId: string) => {
     if (!confirm(`Are you sure you want to delete ${modelId}?`)) {
@@ -63,32 +60,32 @@ export default function InventoryPage() {
     try {
       const response = await inventoryApi.deleteModel(modelId)
       if (response.success) {
-        showToast(`${modelId} deleted (freed ${response.freed_space_gb} GB)`, "success")
+        toastSuccess(`${modelId} deleted (freed ${response.freed_space_gb} GB)`)
         refresh()
       } else {
-        showToast(response.message, "error")
+        toastError(response.message)
       }
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Delete failed", "error")
+      toastError(e instanceof Error ? e.message : "Delete failed")
     }
-  }, [refresh, showToast])
+  }, [refresh])
 
   const handleDistribute = useCallback(async (modelId: string) => {
     try {
       const response = await inventoryApi.distributeModel(modelId)
       if (response.success) {
-        showToast(`${modelId} distributed to ${response.distributed_to.length} nodes`, "success")
+        toastSuccess(`${modelId} distributed to ${response.distributed_to.length} nodes`)
       } else {
-        showToast(response.message, "error")
+        toastError(response.message)
       }
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Distribute failed", "error")
+      toastError(e instanceof Error ? e.message : "Distribute failed")
     }
-  }, [showToast])
+  }, [])
 
   const handleLaunch = useCallback((modelId: string) => {
-    showToast(`Launch ${modelId} from the Models page`, "success")
-  }, [showToast])
+    toastSuccess(`Launch ${modelId} from the Models page`)
+  }, [])
 
   const filteredModels = models.filter((model) => {
     const matchesSearch = !searchQuery.trim() ||
@@ -119,13 +116,14 @@ export default function InventoryPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <ConnectionBadge />
           {downloadStatus && downloadStatus.status === "downloading" && (
-            <Badge variant="secondary" className="flex items-center gap-2">
+            <Badge variant="secondary" className="flex items-center gap-2 transition-smooth">
               <RefreshCw className="h-3 w-3 animate-spin" />
               Downloading {downloadStatus.progress.toFixed(0)}%
             </Badge>
           )}
-          <Button onClick={() => setShowDownloadDialog(true)}>
+          <Button onClick={() => setShowDownloadDialog(true)} className="transition-smooth hover:translate-x-1">
             <Download className="h-4 w-4 mr-2" />
             Download Model
           </Button>
@@ -133,19 +131,6 @@ export default function InventoryPage() {
       </div>
 
       <Separator />
-
-      {toast && (
-        <div
-          className={cn(
-            "fixed bottom-4 right-4 p-4 rounded-lg shadow-lg animate-in slide-in-from-bottom-2",
-            toast.type === "success"
-              ? "bg-green-500/10 text-green-400 border border-green-500/20"
-              : "bg-red-500/10 text-red-400 border border-red-500/20"
-          )}
-        >
-          {toast.message}
-        </div>
-      )}
 
       <ModelStats models={models} />
 

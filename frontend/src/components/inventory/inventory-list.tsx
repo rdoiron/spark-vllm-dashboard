@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Select,
   SelectContent,
@@ -174,8 +175,17 @@ export function InventoryList({
           view === "grid" ? "md:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"
         )}>
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="animate-pulse">
-              <div className="bg-muted rounded-lg p-4 h-48" />
+            <div key={i} className="rounded-lg border p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-5 w-16" />
+              </div>
+              <Skeleton className="h-4 w-48" />
+              <div className="grid grid-cols-2 gap-3">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+              <Skeleton className="h-8 w-full mt-4" />
             </div>
           ))}
         </div>

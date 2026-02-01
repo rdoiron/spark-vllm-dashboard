@@ -73,6 +73,7 @@ export function useMetricsStream(
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const reconnectAttemptsRef = useRef(0)
+  const connectRef = useRef<(() => void) | null>(null)
   const maxReconnectAttempts = 5
 
   const connect = useCallback(() => {
@@ -121,7 +122,9 @@ export function useMetricsStream(
         reconnectAttemptsRef.current++
 
         reconnectTimeoutRef.current = setTimeout(() => {
-          connect()
+          if (connectRef.current) {
+            connectRef.current()
+          }
         }, delay)
       } else {
         setConnectionError("Max reconnection attempts reached")
@@ -130,6 +133,10 @@ export function useMetricsStream(
 
     wsRef.current = ws
   }, [maxDataPoints, onError])
+
+  useEffect(() => {
+    connectRef.current = connect
+  }, [connect])
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {

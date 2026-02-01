@@ -76,3 +76,55 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  .transition-smooth {
+    @apply transition-all duration-200 ease-in-out;
+  }
+  .transition-slow {
+    @apply transition-all duration-300 ease-in-out;
+  }
+  .transition-fast {
+    @apply transition-all duration-150 ease-out;
+  }
+  .fade-in {
+    animation: fadeIn 0.2s ease-in-out;
+  }
+  .slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+  .scale-in {
+    animation: scaleIn 0.2s ease-out;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

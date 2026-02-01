@@ -8,7 +8,8 @@ import { MetricsStats, NoModelStats } from "@/components/metrics/metrics-stats"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Activity, Server, AlertCircle } from "lucide-react"
+import { ConnectionBadge } from "@/components/layout/connection-status"
+import { Server, AlertCircle } from "lucide-react"
 
 export default function MetricsPage() {
   const { current, history, isConnected, connectionError } = useMetricsStream({
@@ -28,17 +29,9 @@ export default function MetricsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Badge
-            variant={isConnected ? "default" : "destructive"}
-            className="flex items-center gap-2"
-          >
-            <Activity
-              className={`h-3 w-3 ${isConnected ? "animate-pulse" : ""}`}
-            />
-            {isConnected ? "Live" : "Disconnected"}
-          </Badge>
+          <ConnectionBadge />
           {connectionError && (
-            <Badge variant="destructive" className="flex items-center gap-2">
+            <Badge variant="destructive" className="flex items-center gap-2 transition-smooth">
               <AlertCircle className="h-3 w-3" />
               {connectionError}
             </Badge>

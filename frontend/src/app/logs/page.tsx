@@ -7,6 +7,7 @@ import { LogControls, LogStatsDisplay } from "@/components/logs/log-controls"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ConnectionBadge } from "@/components/layout/connection-status"
 import {
   Select,
   SelectContent,
@@ -93,18 +94,13 @@ export default function LogsPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Badge
-              variant={isConnected ? "default" : "destructive"}
-              className="flex items-center gap-2 px-3 py-1"
-            >
-              <span
-                className={cn(
-                  "h-2 w-2 rounded-full",
-                  isConnected ? "bg-green-400 animate-pulse" : "bg-red-400"
-                )}
-              />
-              {isConnected ? "Live" : "Disconnected"}
-            </Badge>
+            <ConnectionBadge />
+            {connectionError && (
+              <Badge variant="destructive" className="flex items-center gap-2 transition-smooth">
+                <AlertCircle className="h-3 w-3" />
+                {connectionError}
+              </Badge>
+            )}
           </div>
         </div>
 

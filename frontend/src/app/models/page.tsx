@@ -3,6 +3,8 @@
 import { useState, useCallback } from "react"
 import { useClusterStatus } from "@/hooks/useCluster"
 import { useLocalModels, useDownloadModel, useDeleteModel, useDistributeModel, useDownloadStatus } from "@/hooks/useInventory"
+import { toastSuccess, toastError } from "@/hooks/use-toast"
+import { ErrorBoundary } from "@/components/ui/error-boundary"
 import { ModelStatusCard } from "@/components/model/model-status-card"
 import { ModelLaunchForm } from "@/components/model/model-launch-form"
 import { InventoryList, InventoryStatsBar } from "@/components/inventory/inventory-list"
@@ -10,6 +12,7 @@ import { DownloadDialog } from "@/components/inventory/download-dialog"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ConnectionBadge } from "@/components/layout/connection-status"
 import { AlertCircle, Database, Download } from "lucide-react"
 
 export default function ModelsPage() {
@@ -23,26 +26,20 @@ export default function ModelsPage() {
   const { status: downloadStatus } = useDownloadStatus()
 
   const [showDownloadDialog, setShowDownloadDialog] = useState(false)
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
-
-  const showToast = useCallback((message: string, type: "success" | "error") => {
-    setToast({ message, type })
-    setTimeout(() => setToast(null), 3000)
-  }, [])
 
   const handleDownload = useCallback(async (modelId: string, distributeFlag?: boolean) => {
     try {
       const result = await download(modelId, distributeFlag)
       if (result.success) {
-        showToast(`Download started for ${modelId}`, "success")
+        toastSuccess(`Download started for ${modelId}`)
         refreshModels()
       } else {
-        showToast(result.message, "error")
+        toastError(result.message)
       }
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Download failed", "error")
+      toastError(e instanceof Error ? e.message : "Download failed")
     }
-  }, [download, refreshModels, showToast])
+  }, [download, refreshModels])
 
   const handleDelete = useCallback(async (modelId: string) => {
     if (!confirm(`Are you sure you want to delete ${modelId}?`)) {
@@ -51,32 +48,32 @@ export default function ModelsPage() {
     try {
       const result = await remove(modelId)
       if (result.success) {
-        showToast(`${modelId} deleted (freed ${result.freed_space_gb} GB)`, "success")
+        toastSuccess(`${modelId} deleted (freed ${result.freed_space_gb} GB)`)
         refreshModels()
       } else {
-        showToast(result.message, "error")
+        toastError(result.message)
       }
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Delete failed", "error")
+      toastError(e instanceof Error ? e.message : "Delete failed")
     }
-  }, [remove, refreshModels, showToast])
+  }, [remove, refreshModels])
 
   const handleDistribute = useCallback(async (modelId: string) => {
     try {
       const result = await distribute(modelId)
       if (result.success) {
-        showToast(`${modelId} distributed to ${result.distributed_to.length} nodes`, "success")
+        toastSuccess(`${modelId} distributed to ${result.distributed_to.length} nodes`)
       } else {
-        showToast(result.message, "error")
+        toastError(result.message)
       }
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Distribute failed", "error")
+      toastError(e instanceof Error ? e.message : "Distribute failed")
     }
-  }, [distribute, showToast])
+  }, [distribute])
 
   const handleLaunch = useCallback((modelId: string) => {
-    showToast(`Launch ${modelId} from the form on the right`, "success")
-  }, [showToast])
+    toastSuccess(`Launch ${modelId} from the form on the right`)
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -86,14 +83,15 @@ export default function ModelsPage() {
           <p className="text-muted-foreground">Launch and manage vLLM models</p>
         </div>
         <div className="flex items-center gap-3">
-          <Badge variant={clusterRunning ? "default" : "destructive"}>
+          <ConnectionBadge />
+          <Badge variant={clusterRunning ? "default" : "destructive"} className="transition-smooth">
             {clusterRunning ? "Cluster Online" : "Cluster Offline"}
           </Badge>
         </div>
       </div>
 
       {!clusterRunning && (
-        <Card className="border-yellow-200 bg-yellow-50 dark:border-yellow-900 dark:bg-yellow-900/20">
+        <Card className="border-yellow-200 bg-yellow-50 dark:border-yellow-900 dark:bg-yellow-900/20 transition-smooth">
           <CardContent className="flex items-center gap-3 pt-6">
             <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
             <p className="text-sm text-yellow-800 dark:text-yellow-200">
@@ -101,18 +99,6 @@ export default function ModelsPage() {
             </p>
           </CardContent>
         </Card>
-      )}
-
-      {toast && (
-        <div
-          className={`fixed bottom-4 right-4 p-4 rounded-lg shadow-lg animate-in slide-in-from-bottom-2 ${
-            toast.type === "success"
-              ? "bg-green-500/10 text-green-400 border border-green-500/20"
-              : "bg-red-500/10 text-red-400 border border-red-500/20"
-          }`}
-        >
-          {toast.message}
-        </div>
       )}
 
       <InventoryStatsBar
@@ -156,11 +142,45 @@ export default function ModelsPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-1">
-          <ModelStatusCard />
+          <ErrorBoundary
+            fallback={
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle>Model Status</CardTitle>
+                  <CardDescription>Unable to load model status</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>Please refresh to try again</span>
+                  </div>
+                </CardContent>
+              </Card>
+            }
+          >
+            <ModelStatusCard />
+          </ErrorBoundary>
         </div>
 
         <div className="lg:col-span-2">
-          <ModelLaunchForm clusterRunning={clusterRunning} />
+          <ErrorBoundary
+            fallback={
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle>Launch Form</CardTitle>
+                  <CardDescription>Unable to load launch form</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>Please refresh to try again</span>
+                  </div>
+                </CardContent>
+              </Card>
+            }
+          >
+            <ModelLaunchForm clusterRunning={clusterRunning} />
+          </ErrorBoundary>
         </div>
       </div>
 

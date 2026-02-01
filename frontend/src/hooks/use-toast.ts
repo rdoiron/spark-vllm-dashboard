@@ -142,7 +142,9 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">
 
-function toast({ ...props }: Toast) {
+type ToastVariant = "default" | "success" | "destructive"
+
+function toast({ ...props }: Toast & { variant?: ToastVariant }) {
   const id = genId()
 
   const update = (props: ToasterToast) =>
@@ -152,12 +154,15 @@ function toast({ ...props }: Toast) {
     })
   const dismiss = () => dispatch({ type: "DISMISS_TOAST", toastId: id })
 
+  const variant = props.variant || "default"
+
   dispatch({
     type: "ADD_TOAST",
     toast: {
       ...props,
       id,
       open: true,
+      variant,
       onOpenChange: (open) => {
         if (!open) dismiss()
       },
@@ -169,6 +174,22 @@ function toast({ ...props }: Toast) {
     dismiss,
     update,
   }
+}
+
+function toastSuccess(message: string, options?: { title?: string }) {
+  return toast({
+    title: options?.title || "Success",
+    description: message,
+    variant: "success",
+  })
+}
+
+function toastError(message: string, options?: { title?: string }) {
+  return toast({
+    title: options?.title || "Error",
+    description: message,
+    variant: "destructive",
+  })
 }
 
 function useToast() {
@@ -191,4 +212,4 @@ function useToast() {
   }
 }
 
-export { useToast, toast }
+export { useToast, toast, toastSuccess, toastError }
