@@ -20,9 +20,10 @@ class InventoryService:
     DOWNLOAD_PID_FILE = "/tmp/model_download.pid"
 
     def __init__(self):
-        self._update_config()
+        self.container_name = None
+        self.spark_docker_path = None
 
-    def _update_config(self):
+    def _get_config(self):
         self.container_name = config_service.get_container_name()
         self.spark_docker_path = config_service.get_spark_docker_path()
 

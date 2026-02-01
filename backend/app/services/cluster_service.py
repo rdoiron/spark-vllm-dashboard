@@ -12,12 +12,10 @@ logger = logging.getLogger(__name__)
 
 class ClusterService:
     def __init__(self):
-        self._update_paths()
-
-    def _update_paths(self):
-        self.spark_docker_path = config_service.get_spark_docker_path()
+        self.spark_docker_path = None
 
     def _get_script_path(self, script_name: str) -> Path:
+        self.spark_docker_path = config_service.get_spark_docker_path()
         script_path = self.spark_docker_path / script_name
         if not script_path.exists():
             raise FileNotFoundError(f"Script not found: {script_path}")
