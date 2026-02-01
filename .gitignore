@@ -90,6 +90,7 @@ Thumbs.db
 .DS_Store
 
 # Project specific
+plan/
 .spark-dashboard/
 .huggingface/
 .data/
