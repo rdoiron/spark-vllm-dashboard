@@ -25,3 +25,9 @@ async def stop_cluster():
 @router.get("/nodes", response_model=NodeStatus)
 async def get_nodes_status():
     return await cluster_service.get_nodes_status()
+
+
+@router.get("/uptime")
+async def get_cluster_uptime():
+    uptime = await cluster_service.get_uptime()
+    return {"uptime": uptime}

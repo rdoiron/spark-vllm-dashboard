@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
+import { useQuery } from "@tanstack/react-query"
 
 export interface VLLMMetrics {
   timestamp: string
@@ -175,4 +176,20 @@ export function useMetricsStream(
     reconnect,
     disconnect,
   }
+}
+
+export function useCurrentMetrics() {
+  return useQuery({
+    queryKey: ["current-metrics"],
+    queryFn: async () => {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://192.168.5.157:8080"}/api/metrics/current`
+      )
+      if (!response.ok) {
+        throw new Error("Failed to fetch metrics")
+      }
+      return response.json()
+    },
+    refetchInterval: 5000,
+  })
 }

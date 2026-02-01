@@ -1,13 +1,17 @@
 "use client"
 
-import React, { useState, useCallback, useMemo } from "react"
-import { useLogStream, useLogFilter, LogEntry, downloadLogs } from "@/hooks/useLogs"
-import { LogViewer } from "@/components/logs/log-viewer"
-import { LogControls, LogStatsDisplay } from "@/components/logs/log-controls"
+import { useState, useEffect, useCallback, useRef } from "react"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ConnectionBadge } from "@/components/layout/connection-status"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Select,
   SelectContent,
@@ -15,158 +19,266 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
 import {
-  Activity,
-  Server,
-  Terminal,
-  AlertCircle,
   Download,
+  RefreshCw,
+  Pause,
+  Play,
+  Trash2,
+  Search,
+  Filter,
+  Terminal,
 } from "lucide-react"
+import { useLogStream, LogEntry } from "@/hooks/useLogs"
+
+type LogLevel = "all" | "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL"
+
+function formatTimestamp(timestamp: string): string {
+  try {
+    const date = new Date(timestamp)
+    return date.toLocaleTimeString()
+  } catch {
+    return timestamp
+  }
+}
+
+function getLevelColor(level: LogLevel): string {
+  switch (level) {
+    case "DEBUG":
+      return "text-blue-400"
+    case "INFO":
+      return "text-green-400"
+    case "WARNING":
+      return "text-yellow-400"
+    case "ERROR":
+      return "text-red-400"
+    case "CRITICAL":
+      return "text-red-600 font-bold"
+    default:
+      return "text-muted-foreground"
+  }
+}
+
+function LogEntryItem({
+  entry,
+  isLatest,
+}: {
+  entry: LogEntry
+  isLatest: boolean
+}) {
+  return (
+    <div
+      className={`flex gap-3 p-2 rounded-md transition-colors ${
+        isLatest ? "bg-muted/50" : "hover:bg-muted/30"
+      }`}
+    >
+      <span className="text-xs text-muted-foreground shrink-0 w-24">
+        {formatTimestamp(entry.timestamp)}
+      </span>
+      <Badge
+        variant="outline"
+        className={`shrink-0 w-20 justify-center text-xs ${getLevelColor(
+          entry.level as LogLevel
+        )}`}
+      >
+        {entry.level}
+      </Badge>
+      <span className="font-mono text-sm">{entry.message}</span>
+    </div>
+  )
+}
 
 export default function LogsPage() {
-  const { history, isConnected, connectionError, reconnect } = useLogStream({
-    maxBufferSize: 2000,
+  const [filterLevel, setFilterLevel] = useState<LogLevel>("all")
+  const [isPaused, setIsPaused] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [autoScroll, setAutoScroll] = useState(true)
+
+  const {
+    current,
+    history,
+    isConnected,
+    connectionError,
+    reconnect,
+    disconnect,
+  } = useLogStream({
+    maxBufferSize: 500,
   })
 
-  const [isPaused, setIsPaused] = useState(false)
-  const [autoScroll, setAutoScroll] = useState(true)
-  const [lines, setLines] = useState(500)
-
-  const filterState = useLogFilter(history)
-
-  const filteredLogs = useMemo(() => {
-    let result = filterState.filteredLogs
-
-    if (!isPaused) {
-      result = result
-    }
-
-    return result
-  }, [filterState.filteredLogs, isPaused])
-
-  const handlePauseToggle = useCallback(() => {
-    setIsPaused((prev) => !prev)
-    if (isPaused) {
-      setAutoScroll(true)
-    }
-  }, [isPaused])
-
-  const handleAutoScrollChange = useCallback((value: boolean) => {
-    setAutoScroll(value)
-  }, [])
-
-  const handleClear = useCallback(() => {
-    setIsPaused(false)
-    setAutoScroll(true)
-  }, [])
+  const filteredLogs = history.filter((entry) => {
+    if (filterLevel === "all") return true
+    return entry.level === filterLevel
+  })
 
   const handleDownload = useCallback(async () => {
     try {
-      await downloadLogs(lines)
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://192.168.5.157:8080"}/api/logs/download?lines=1000`
+      )
+      if (!response.ok) {
+        throw new Error("Failed to download logs")
+      }
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
+      a.download = `vllm_logs_${timestamp}.log`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
     } catch (error) {
       console.error("Failed to download logs:", error)
     }
-  }, [lines])
+  }, [])
 
-  const levelCounts = useMemo(() => {
-    return {
-      DEBUG: history.filter((l) => l.level === "DEBUG").length,
-      INFO: history.filter((l) => l.level === "INFO").length,
-      WARNING: history.filter((l) => l.level === "WARNING").length,
-      ERROR: history.filter((l) => l.level === "ERROR").length,
-      CRITICAL: history.filter((l) => l.level === "CRITICAL").length,
+  const handleClear = useCallback(() => {
+    disconnect()
+    setTimeout(() => reconnect(), 100)
+  }, [disconnect, reconnect])
+
+  useEffect(() => {
+    if (autoScroll && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [history])
+  }, [history.length, autoScroll])
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="container mx-auto py-6 space-y-6 flex-1">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <Terminal className="h-7 w-7" />
-              Logs
-            </h1>
-            <p className="text-muted-foreground">
-              Real-time vLLM server log streaming
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <ConnectionBadge />
-            {connectionError && (
-              <Badge variant="destructive" className="flex items-center gap-2 transition-smooth">
-                <AlertCircle className="h-3 w-3" />
-                {connectionError}
-              </Badge>
-            )}
-          </div>
+    <div className="container mx-auto py-6 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <Terminal className="h-6 w-6" />
+            Logs
+          </h1>
+          <p className="text-muted-foreground">
+            System and application logs
+          </p>
         </div>
-
-        <Separator />
-
-        <div className="flex flex-col gap-4">
-          <LogControls
-            isConnected={isConnected}
-            isPaused={isPaused}
-            onPauseToggle={handlePauseToggle}
-            onReconnect={reconnect}
-            onDownload={handleDownload}
-            onClear={handleClear}
-            onLevelToggle={filterState.toggleLevel}
-            onSearchChange={filterState.setSearchQuery}
-            filterState={{
-              levels: filterState.filterLevel,
-              searchQuery: filterState.searchQuery,
-            }}
-            logCount={history.length}
-            filteredCount={filterState.filteredLogs.length}
-          />
-
-          <LogViewer
-            logs={isPaused ? filterState.filteredLogs : filteredLogs}
-            isConnected={isConnected}
-            isPaused={isPaused}
-            autoScroll={autoScroll}
-            onAutoScrollChange={handleAutoScrollChange}
-            className="h-[calc(100vh-280px)] min-h-[400px]"
-          />
-
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <LogStatsDisplay
-              logCount={history.length}
-              filteredCount={filterState.filteredLogs.length}
-              levels={levelCounts}
+        <div className="flex items-center gap-2">
+          <Badge
+            variant={isConnected ? "default" : "destructive"}
+            className="flex items-center gap-1"
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${
+                isConnected ? "bg-green-400" : "bg-red-400"
+              }`}
             />
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span>Buffer:</span>
-                <Select value={lines.toString()} onValueChange={(v) => setLines(parseInt(v))}>
-                  <SelectTrigger className="h-6 w-28 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="500">500 lines</SelectItem>
-                    <SelectItem value="1000">1000 lines</SelectItem>
-                    <SelectItem value="2000">2000 lines</SelectItem>
-                    <SelectItem value="5000">5000 lines</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-2">
-                <span>Auto-scroll:</span>
-                <input
-                  type="checkbox"
-                  checked={autoScroll}
-                  onChange={(e) => handleAutoScrollChange(e.target.checked)}
-                  className="rounded border-muted-foreground"
-                />
-              </div>
-            </div>
-          </div>
+            {isConnected ? "Connected" : "Disconnected"}
+          </Badge>
+          <Button variant="outline" size="sm" onClick={reconnect}>
+            <RefreshCw className="h-4 w-4 mr-1" />
+            Reconnect
+          </Button>
         </div>
       </div>
+
+      <Separator />
+
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <CardTitle>Log Stream</CardTitle>
+              <CardDescription>
+                Real-time logs from the vLLM server
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Select value={filterLevel} onValueChange={(v) => setFilterLevel(v as LogLevel)}>
+                <SelectTrigger className="w-32">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="All levels" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Levels</SelectItem>
+                  <SelectItem value="DEBUG">DEBUG</SelectItem>
+                  <SelectItem value="INFO">INFO</SelectItem>
+                  <SelectItem value="WARNING">WARNING</SelectItem>
+                  <SelectItem value="ERROR">ERROR</SelectItem>
+                  <SelectItem value="CRITICAL">CRITICAL</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Button
+                variant={autoScroll ? "default" : "outline"}
+                size="sm"
+                onClick={() => setAutoScroll(!autoScroll)}
+              >
+                {autoScroll ? (
+                  <>
+                    <Play className="h-4 w-4 mr-1" />
+                    Auto-scroll
+                  </>
+                ) : (
+                  <>
+                    <Pause className="h-4 w-4 mr-1" />
+                    Manual scroll
+                  </>
+                )}
+              </Button>
+
+              <Button variant="outline" size="sm" onClick={handleClear}>
+                <Trash2 className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
+
+              <Button variant="default" size="sm" onClick={handleDownload}>
+                <Download className="h-4 w-4 mr-1" />
+                Download
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="border rounded-lg overflow-hidden">
+            <div className="bg-muted/50 px-4 py-2 border-b flex items-center justify-between">
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <span>{filteredLogs.length} logs</span>
+                {current && (
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                    Live
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1 text-xs">
+                <Search className="h-3 w-3" />
+                Showing: {filterLevel === "all" ? "All levels" : filterLevel}
+              </div>
+            </div>
+            <ScrollArea
+              ref={scrollRef}
+              className="h-[500px] font-mono text-xs"
+            >
+              <div className="p-4 space-y-1">
+                {filteredLogs.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    {isConnected
+                      ? "Waiting for logs..."
+                      : "Not connected. Click Reconnect to start streaming."}
+                  </div>
+                ) : (
+                  filteredLogs.map((entry, index) => (
+                    <LogEntryItem
+                      key={`${entry.timestamp}-${index}`}
+                      entry={entry}
+                      isLatest={index === filteredLogs.length - 1}
+                    />
+                  ))
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+          {connectionError && (
+            <div className="mt-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+              <strong>Error:</strong> {connectionError}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

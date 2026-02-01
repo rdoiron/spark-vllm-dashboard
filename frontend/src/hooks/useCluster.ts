@@ -72,3 +72,22 @@ export function useClusterAction() {
     },
   })
 }
+
+async function fetchUptime(): Promise<string | null> {
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL || "http://192.168.5.157:8080"}/api/cluster/uptime`
+  )
+  if (!response.ok) {
+    return null
+  }
+  const data = await response.json()
+  return data.uptime
+}
+
+export function useClusterUptime() {
+  return useQuery({
+    queryKey: ["cluster-uptime"],
+    queryFn: fetchUptime,
+    refetchInterval: 30000,
+  })
+}

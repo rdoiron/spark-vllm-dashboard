@@ -71,6 +71,10 @@ class ClusterService:
         uptime_match = re.search(r"uptime[:\s]+(\d+[hmhs]+)", output, re.IGNORECASE)
         if uptime_match:
             uptime = uptime_match.group(1)
+        else:
+            uptime_match = re.search(r"(\d+[hmhs]+)", output, re.IGNORECASE)
+            if uptime_match:
+                uptime = uptime_match.group(1)
 
         if "error" in output_lower or "failed" in output_lower:
             message = output.strip()
@@ -201,6 +205,19 @@ class ClusterService:
                 worker_healthy=False,
                 message=f"Unexpected error: {str(e)}",
             )
+
+    async def get_uptime(self) -> Optional[str]:
+        try:
+            stdout, stderr, returncode = await self._run_script(
+                "launch-cluster.sh", ["status"]
+            )
+            uptime_match = re.search(r"(\d+[hmhs]+)", stdout, re.IGNORECASE)
+            if uptime_match:
+                return uptime_match.group(1)
+            return None
+        except Exception as e:
+            logger.error(f"Error getting uptime: {e}")
+            return None
 
     async def check_node_health(self, ip: str) -> NodeHealth:
         try:
