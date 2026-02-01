@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useSettingsStore } from "@/lib/settings-store"
+import { configApi, ClusterConfig } from "@/lib/api"
 import { useTheme } from "next-themes"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -17,7 +18,7 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { ConnectionBadge } from "@/components/layout/connection-status"
-import { toastSuccess } from "@/hooks/use-toast"
+import { toastSuccess, toastError } from "@/hooks/use-toast"
 import {
   Settings,
   Monitor,
@@ -53,31 +54,60 @@ export default function SettingsPage() {
   const { theme, setTheme } = useTheme()
 
   const {
-    cluster,
     display,
-    setSparkDockerPath,
-    setContainerName,
-    setHeadNodeIP,
-    setWorkerNodeIPs,
+    setTheme: setDisplayTheme,
     setMetricsRefreshRate,
     setLogBufferSize,
     resetToDefaults,
   } = useSettingsStore()
 
   const [mounted, setMounted] = useState(false)
+  const [clusterConfig, setClusterConfig] = useState<ClusterConfig | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [editedConfig, setEditedConfig] = useState<Partial<ClusterConfig>>({})
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true)
   }, [])
 
-  const handleSave = () => {
-    toastSuccess("Settings saved successfully")
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const config = await configApi.getConfig()
+        setClusterConfig(config)
+        setEditedConfig({
+          spark_docker_path: config.spark_docker_path,
+          container_name: config.container_name,
+          head_node_ip: config.head_node_ip,
+          worker_node_ips: config.worker_node_ips,
+          vllm_port: config.vllm_port,
+        })
+      } catch (error) {
+        console.error("Failed to fetch config:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchConfig()
+  }, [])
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const config = await configApi.updateConfig(editedConfig)
+      setClusterConfig(config)
+      toastSuccess("Settings saved successfully")
+    } catch (error) {
+      toastError("Failed to save settings")
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleReset = () => {
     resetToDefaults()
-    toastSuccess("Settings reset to defaults")
+    toastSuccess("Display settings reset to defaults")
   }
 
   const formatMetricsRate = (ms: number) => {
@@ -89,6 +119,8 @@ export default function SettingsPage() {
     if (lines >= 1000) return `${(lines / 1000).toFixed(0)}K`
     return lines.toString()
   }
+
+  if (!mounted) return null
 
   return (
     <div className="space-y-6">
@@ -115,81 +147,89 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="spark-docker-path">Spark Docker Path</Label>
-              <Input
-                id="spark-docker-path"
-                placeholder="/path/to/spark-vllm-docker"
-                value={cluster.sparkDockerPath}
-                onChange={(e) => setSparkDockerPath(e.target.value)}
-                className="font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">
-                Path to the spark-vllm-docker repository on your system
-              </p>
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
+          ) : (
+            <>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="spark-docker-path">Spark Docker Path</Label>
+                  <Input
+                    id="spark-docker-path"
+                    placeholder="/path/to/spark-vllm-docker"
+                    value={editedConfig.spark_docker_path || ""}
+                    onChange={(e) => setEditedConfig({ ...editedConfig, spark_docker_path: e.target.value })}
+                    className="font-mono text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Path to the spark-vllm-docker repository on your system
+                  </p>
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="container-name">Container Name</Label>
-              <Input
-                id="container-name"
-                placeholder="vllm_node"
-                value={cluster.containerName}
-                onChange={(e) => setContainerName(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Docker container name to manage
-              </p>
-            </div>
-          </div>
+                <div className="space-y-2">
+                  <Label htmlFor="container-name">Container Name</Label>
+                  <Input
+                    id="container-name"
+                    placeholder="vllm_node"
+                    value={editedConfig.container_name || ""}
+                    onChange={(e) => setEditedConfig({ ...editedConfig, container_name: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Docker container name to manage
+                  </p>
+                </div>
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="head-node-ip">Head Node IP</Label>
-            <Input
-              id="head-node-ip"
-              placeholder="192.168.1.100"
-              value={cluster.headNodeIP}
-              onChange={(e) => setHeadNodeIP(e.target.value)}
-              className="font-mono text-sm max-w-md"
-            />
-            <p className="text-xs text-muted-foreground">
-              IP address of the head node in your DGX Spark cluster
-            </p>
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="head-node-ip">Head Node IP</Label>
+                <Input
+                  id="head-node-ip"
+                  placeholder="192.168.1.100"
+                  value={editedConfig.head_node_ip || ""}
+                  onChange={(e) => setEditedConfig({ ...editedConfig, head_node_ip: e.target.value })}
+                  className="font-mono text-sm max-w-md"
+                />
+                <p className="text-xs text-muted-foreground">
+                  IP address of the head node in your DGX Spark cluster
+                </p>
+              </div>
 
-          <div className="space-y-2">
-            <Label>Worker Node IPs</Label>
-            <div className="flex flex-wrap gap-2">
-              {cluster.workerNodeIPs.length > 0 ? (
-                cluster.workerNodeIPs.map((ip, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-muted/30 font-mono text-sm"
-                  >
-                    <Network className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span>{ip}</span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">No worker nodes configured</p>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Read-only display of configured worker node IPs
-            </p>
-          </div>
+              <div className="space-y-2">
+                <Label>Worker Node IPs</Label>
+                <div className="flex flex-wrap gap-2">
+                  {editedConfig.worker_node_ips && editedConfig.worker_node_ips.length > 0 ? (
+                    editedConfig.worker_node_ips.map((ip, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-muted/30 font-mono text-sm"
+                      >
+                        <Network className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span>{ip}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No worker nodes configured</p>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Read-only display of configured worker node IPs
+                </p>
+              </div>
 
-          <div className="flex gap-2">
-            <Button onClick={handleSave} className="transition-smooth hover:translate-x-1">
-              <Save className="h-4 w-4 mr-2" />
-              Save Changes
-            </Button>
-            <Button variant="outline" onClick={handleReset} className="transition-smooth hover:translate-x-1">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Reset to Defaults
-            </Button>
-          </div>
+              <div className="flex gap-2">
+                <Button onClick={handleSave} disabled={saving} className="transition-smooth hover:translate-x-1">
+                  <Save className="h-4 w-4 mr-2" />
+                  {saving ? "Saving..." : "Save Changes"}
+                </Button>
+                <Button variant="outline" onClick={handleReset} className="transition-smooth hover:translate-x-1">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Reset Display
+                </Button>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -211,7 +251,7 @@ export default function SettingsPage() {
                 <Button
                   variant={display.theme === "light" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setTheme("light")}
+                  onClick={() => setDisplayTheme("light")}
                   className="flex-1 transition-all hover:translate-y-1"
                 >
                   <Sun className="h-4 w-4 mr-2" />
@@ -220,7 +260,7 @@ export default function SettingsPage() {
                 <Button
                   variant={display.theme === "dark" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setTheme("dark")}
+                  onClick={() => setDisplayTheme("dark")}
                   className="flex-1 transition-all hover:translate-y-1"
                 >
                   <Moon className="h-4 w-4 mr-2" />
@@ -229,7 +269,7 @@ export default function SettingsPage() {
                 <Button
                   variant={display.theme === "system" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setTheme("system")}
+                  onClick={() => setDisplayTheme("system")}
                   className="flex-1 transition-all hover:translate-y-1"
                 >
                   <Monitor className="h-4 w-4 mr-2" />

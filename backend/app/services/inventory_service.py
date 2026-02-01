@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from app.config import settings
+from app.services.config_service import config_service
 from app.models.inventory import (
     LocalModel,
     DownloadStatus,
@@ -20,8 +20,11 @@ class InventoryService:
     DOWNLOAD_PID_FILE = "/tmp/model_download.pid"
 
     def __init__(self):
-        self.container_name = settings.container_name
-        self.spark_docker_path = Path(settings.spark_docker_path)
+        self._update_config()
+
+    def _update_config(self):
+        self.container_name = config_service.get_container_name()
+        self.spark_docker_path = config_service.get_spark_docker_path()
 
     async def _run_docker_command(self, cmd: str) -> tuple[str, str, int]:
         full_cmd = f"docker exec {self.container_name} sh -c '{cmd}'"

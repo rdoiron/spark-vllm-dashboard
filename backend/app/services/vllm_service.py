@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from app.config import settings
+from app.services.config_service import config_service
 from app.models.vllm import ModelLaunchConfig, ModelStatus, LaunchResult, RunningConfig
 
 logger = logging.getLogger(__name__)
@@ -17,9 +17,12 @@ VLLM_CONFIG_FILE = "/tmp/vllm_config.json"
 
 class VLLMService:
     def __init__(self):
-        self.container_name = settings.container_name
-        self.vllm_port = settings.vllm_port
-        self.spark_docker_path = Path(settings.spark_docker_path)
+        self._update_config()
+
+    def _update_config(self):
+        self.container_name = config_service.get_container_name()
+        self.vllm_port = config_service.get_vllm_port()
+        self.spark_docker_path = config_service.get_spark_docker_path()
 
     async def _run_docker_command(self, cmd: str) -> tuple[str, str, int]:
         full_cmd = f"docker exec {self.container_name} sh -c '{cmd}'"

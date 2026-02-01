@@ -46,3 +46,21 @@ export const api = {
   delete: <T>(endpoint: string) =>
     request<T>(endpoint, { method: "DELETE" }),
 }
+
+export interface ClusterConfig {
+  spark_docker_path: string
+  container_name: string
+  head_node_ip: string
+  worker_node_ips: string[]
+  vllm_port: number
+}
+
+export const configApi = {
+  getConfig: () => api.get<ClusterConfig>("/config"),
+
+  updateConfig: (config: Partial<ClusterConfig>) =>
+    api.put<ClusterConfig>("/config", config),
+
+  reloadConfig: () =>
+    api.post<{ message: string; config: ClusterConfig }>("/config/reload"),
+}

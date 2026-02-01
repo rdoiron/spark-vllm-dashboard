@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from app.config import settings
+from app.services.config_service import config_service
 from app.models.cluster import ClusterStatus, NodeHealth, NodeStatus
 
 logger = logging.getLogger(__name__)
@@ -12,8 +12,10 @@ logger = logging.getLogger(__name__)
 
 class ClusterService:
     def __init__(self):
-        self.spark_docker_path = Path(settings.spark_docker_path)
-        self.launch_script = self.spark_docker_path / "launch-cluster.sh"
+        self._update_paths()
+
+    def _update_paths(self):
+        self.spark_docker_path = config_service.get_spark_docker_path()
 
     def _get_script_path(self, script_name: str) -> Path:
         script_path = self.spark_docker_path / script_name
@@ -240,8 +242,9 @@ class ClusterService:
             )
 
     async def get_nodes_status(self) -> NodeStatus:
-        head_ip = settings.head_node_ip
-        worker_ip = "192.168.5.212"
+        head_ip = config_service.get_head_node_ip()
+        worker_ips = config_service.get_worker_node_ips()
+        worker_ip = worker_ips[0] if worker_ips else "192.168.5.212"
 
         head_health = await self.check_node_health(head_ip)
         worker_health = await self.check_node_health(worker_ip)
