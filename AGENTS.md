@@ -15,24 +15,23 @@ A web-based management dashboard for controlling vLLM inference on a DGX Spark c
 ### Frontend (Next.js)
 ```bash
 cd frontend
-npm run dev          # Start dev server on port 3000
-npm run build        # Production build
-npm run lint         # Run ESLint
-npm run typecheck    # Run TypeScript compiler check
-npm test             # Run React Testing Library tests
-npm test -- --watch  # Watch mode for tests
-npm test path/to/component.test.tsx  # Run single test file
+npm run dev              # Start dev server on port 3000
+npm run build            # Production build
+npm run lint             # Run ESLint
+npm run typecheck        # Run TypeScript compiler check
+npm test                 # Run all tests
+npm test path/to/component.test.tsx  # Run single test file (Recommended)
 ```
 
 ### Backend (FastAPI)
 ```bash
 cd backend
-python -m venv venv && source venv/bin/activate  # Create virtual env
-pip install -r requirements.txt                  # Install deps
+python -m venv venv && source venv/bin/activate    # Create venv
+pip install -r requirements.txt                    # Install deps
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8080  # Dev server
-python -m pytest                                 # Run all tests
-python -m pytest tests/test_service.py           # Run single test file
-python -m pytest -v                              # Verbose output
+python -m pytest                                  # Run all tests
+python -m pytest tests/test_service.py            # Run single test file (Recommended)
+python -m pytest -v                               # Verbose output
 ```
 
 ### Docker
@@ -47,7 +46,7 @@ docker compose build      # Rebuild images
 
 ### TypeScript/React Conventions
 
-**Imports** (frontend/lib/api.ts pattern):
+**Imports**:
 ```typescript
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { type ClassValue, clsx } from "clsx"
@@ -56,11 +55,11 @@ import { useEffect, useState } from "react"
 ```
 
 **Naming**:
-- Components: `PascalCase` for files (`ModelLaunchForm.tsx`), `camelCase` for props interfaces
-- Hooks: `use*` prefix (`useCluster.ts`, `useModelStatus`)
+- Components: `PascalCase` files (`ModelLaunchForm.tsx`), `camelCase` for props interfaces
+- Hooks: `use*` prefix (`useCluster.ts`)
 - Variables/functions: `camelCase`
 - Constants: `UPPER_SNAKE_CASE` or `PascalCase` for config objects
-- Types/interfaces: `PascalCase` with `Type` suffix for complex types
+- Types/interfaces: `PascalCase` with `Type` suffix
 
 **File Structure**:
 ```
@@ -68,31 +67,24 @@ frontend/
 ├── app/                    # Next.js App Router pages
 ├── components/
 │   ├── ui/                # shadcn/ui base components
-│   ├── cluster/           # Feature: cluster components
-│   ├── model/             # Feature: model components
-│   ├── metrics/           # Feature: metrics components
-│   └── logs/              # Feature: logs components
+│   ├── cluster/           # Feature components
+│   ├── model/
+│   ├── metrics/
+│   └── logs/
 ├── hooks/                 # Custom React hooks
 ├── lib/                   # Utilities (api.ts, utils.ts)
 └── types/                 # TypeScript type definitions
 ```
 
-**Component Patterns**:
-- Use functional components with TypeScript interfaces
+**Patterns**:
+- Functional components with TypeScript interfaces
 - Extract complex logic into custom hooks
-- Keep components focused (single responsibility)
-- Use composition over prop drilling
-- Handle loading/error states explicitly
-
-**State Management**:
-- Server state: TanStack Query (`useQuery`, `useMutation`)
-- UI state: Zustand stores for global UI state
-- Local component state: `useState`, `useReducer`
-- Avoid `useContext` for global state; prefer Zustand
+- TanStack Query for server state, Zustand for global UI state
+- Avoid `useContext` for global state
 
 ### Python/FastAPI Conventions
 
-**Imports** (backend/app/routers/cluster.py pattern):
+**Imports**:
 ```python
 from fastapi import APIRouter, HTTPException, status
 from typing import Optional
@@ -104,43 +96,24 @@ from app.models.cluster import ClusterStatus, ClusterAction
 - Modules/functions/variables: `snake_case`
 - Classes: `PascalCase`
 - Constants: `UPPER_SNAKE_CASE`
-- Pydantic models: `PascalCase` with descriptive names
 
-**File Structure** (backend/app/):
+**File Structure**:
 ```
-app/
+backend/app/
 ├── main.py               # FastAPI app entry with CORS
 ├── config.py             # Pydantic-settings configuration
 ├── routers/              # API route handlers
-│   ├── cluster.py
-│   ├── model.py
-│   ├── metrics.py
-│   ├── logs.py
-│   └── profiles.py
 ├── services/             # Business logic
-│   ├── cluster_service.py
-│   ├── vllm_service.py
-│   ├── metrics_service.py
-│   └── log_service.py
 ├── models/               # Pydantic models
-│   ├── cluster.py
-│   ├── vllm.py
-│   └── metrics.py
-└── db/                   # Database layer
-    ├── database.py
-    └── models.py
+└── db/                   # Database layer (SQLAlchemy + aiosqlite)
 ```
 
-**API Patterns**:
-- Use literal types for action enums: `Literal["start", "stop"]`
+**Patterns**:
+- Use `Literal` types for action enums: `Literal["start", "stop"]`
 - Return structured Pydantic models from all endpoints
-- Use HTTPException for error handling with appropriate status codes
+- Use `HTTPException` for error handling with appropriate status codes
 - WebSocket endpoints: `/api/{resource}/stream`
-
-**Async/Await**:
-- All I/O operations must be async (httpx, aiosqlite, asyncio subprocess)
-- Never block the event loop with synchronous operations
-- Use `async with` for context managers
+- All I/O operations must be async (`asyncio.create_subprocess_exec`)
 
 **Error Handling**:
 ```python
@@ -152,59 +125,38 @@ except CalledProcessError as e:
 
 ## Shell Command Integration
 
-When calling spark-vllm-docker scripts (launch-cluster.sh, hf-download.sh):
+When calling spark-vllm-docker scripts:
 - Use `asyncio.create_subprocess_exec` for non-blocking execution
 - Capture stdout/stderr for logging and parsing
 - Sanitize all user inputs before shell interpolation
 - Validate model IDs with regex: `^[\w\-/]+$`
 
-Example (cluster_service.py):
-```python
-async def start_cluster(self) -> ClusterStatus:
-    cmd = f"{self.spark_docker_path}/launch-cluster.sh -d"
-    proc = await asyncio.create_subprocess_shell(
-        cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-    )
-    stdout, _ = await proc.communicate()
-    return self._parse_status(stdout.decode())
-```
-
 ## Environment Variables
 
-Required environment variables (see .env.example):
+Required (see .env.example):
 - `SPARK_DOCKER_PATH`: Path to spark-vllm-docker repository
-- `CONTAINER_NAME`: Docker container name for vLLM (default: vllm_node)
+- `CONTAINER_NAME`: Docker container name (default: vllm_node)
 - `HEAD_NODE_IP`: Dashboard host IP for CORS
 - `VLLM_PORT`: vLLM server port (default: 8000)
 - `API_PORT`: FastAPI port (default: 8080)
-- `NEXT_PUBLIC_API_URL`: Frontend env var for API base URL
-- `NEXT_PUBLIC_WS_URL`: Frontend env var for WebSocket URL
+- `NEXT_PUBLIC_API_URL`: Frontend API base URL
+- `NEXT_PUBLIC_WS_URL`: Frontend WebSocket URL
 
 ## Development Workflow
 
-1. **Start services**: `docker compose up -d` (runs both frontend/backend)
-2. **Backend dev**: Run uvicorn with hot reload in separate terminal
+1. **Start services**: `docker compose up -d`
+2. **Backend dev**: Run uvicorn in separate terminal
 3. **Frontend dev**: Run `npm run dev` in frontend directory
-4. **Test single file**: Use specific test paths shown in Build Commands
-5. **Check types**: Run `npm run typecheck` and `python -m pyright`
+4. **Test single file**: Use specific paths shown above
+5. **Type checking**: Run `npm run typecheck` and `python -m pyright`
 
 ## Testing Strategy
 
 **Frontend**: React Testing Library with Jest
-- Place tests next to components: `ComponentName.test.tsx`
+- Tests: `ComponentName.test.tsx` next to components
 - Mock API calls with MSW or simple Jest mocks
-- Test component rendering and user interactions
 
 **Backend**: pytest with pytest-asyncio
-- Place tests in `tests/` directory mirroring app structure
-- Mock shell commands with unittest.mock patches
-- Test API endpoints using TestClient
-- WebSocket tests: use WebSocketTestClient or similar
-
-**Manual Testing Checklist**:
-- Cluster start/stop/status operations
-- Model launch with various configurations
-- Real-time metrics streaming
-- Log streaming without disconnections
-- Profile save/load functionality
-- Theme toggle persistence
+- Tests: `tests/` directory mirroring app structure
+- Mock shell commands with `unittest.mock` patches
+- WebSocket tests: use `WebSocketTestClient`
