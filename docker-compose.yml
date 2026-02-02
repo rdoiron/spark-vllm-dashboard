@@ -19,6 +19,7 @@ services:
       - spark_docker_data:/spark-dashboard/spark-vllm-docker:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - dashboard_data:/app/.spark-dashboard
+      - ~/.cache/huggingface/hub:/root/.cache/huggingface/hub:ro
     restart: unless-stopped
     depends_on:
       - frontend
