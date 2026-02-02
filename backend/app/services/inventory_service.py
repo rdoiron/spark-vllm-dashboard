@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from app.services.config_service import config_service
+from app.config import settings
 from app.models.inventory import (
     LocalModel,
     DownloadStatus,
@@ -18,13 +19,15 @@ logger = logging.getLogger(__name__)
 
 
 class InventoryService:
-    HF_CACHE_DIR = "/root/.cache/huggingface/hub"
     DOWNLOAD_STATUS_FILE = "/tmp/model_download_status.json"
     DOWNLOAD_PID_FILE = "/tmp/model_download.pid"
 
     def __init__(self):
         self.container_name = None
         self.spark_docker_path = None
+
+    def _get_hf_cache_dir(self) -> str:
+        return settings.hf_cache_dir
 
     def _get_config(self):
         self.container_name = config_service.get_container_name()
@@ -75,7 +78,8 @@ class InventoryService:
             return []
 
         try:
-            cmd = f"ls -la {self.HF_CACHE_DIR} 2>/dev/null | tail -n +2"
+            hf_cache_dir = self._get_hf_cache_dir()
+            cmd = f"ls -la {hf_cache_dir} 2>/dev/null | tail -n +2"
             stdout, stderr, returncode = await self._run_docker_command(cmd)
 
             if returncode != 0:
@@ -108,7 +112,8 @@ class InventoryService:
                 else:
                     model_id = model_path
 
-                full_path = Path(self.HF_CACHE_DIR) / model_path
+                hf_cache_dir = self._get_hf_cache_dir()
+                full_path = Path(hf_cache_dir) / model_path
                 size_gb = self._get_file_size_gb(full_path)
 
                 name = self._get_model_name(model_id)
@@ -237,9 +242,8 @@ class InventoryService:
             }
 
         try:
-            model_path = (
-                Path(self.HF_CACHE_DIR) / f"models--{model_id.replace('/', '--')}"
-            )
+            hf_cache_dir = self._get_hf_cache_dir()
+            model_path = Path(hf_cache_dir) / f"models--{model_id.replace('/', '--')}"
 
             if not model_path.exists():
                 return {
