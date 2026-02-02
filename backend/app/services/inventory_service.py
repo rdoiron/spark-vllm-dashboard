@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import re
 import subprocess
@@ -12,6 +13,8 @@ from app.models.inventory import (
     DownloadStatus,
     DownloadRequest,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class InventoryService:
@@ -65,11 +68,23 @@ class InventoryService:
         return total / (1024**3)
 
     async def list_local_models(self) -> list[LocalModel]:
+        self._get_config()
+
+        if not self.container_name:
+            logger.error("Docker container name not configured. Cannot list models.")
+            return []
+
         try:
             cmd = f"ls -la {self.HF_CACHE_DIR} 2>/dev/null | tail -n +2"
             stdout, stderr, returncode = await self._run_docker_command(cmd)
 
-            if returncode != 0 or not stdout.strip():
+            if returncode != 0:
+                logger.warning(
+                    f"Failed to list models from container {self.container_name}: {stderr}"
+                )
+                return []
+
+            if not stdout.strip():
                 return []
 
             models = []
@@ -125,7 +140,7 @@ class InventoryService:
             return models
 
         except Exception as e:
-            print(f"Error listing models: {e}")
+            logger.error(f"Error listing models: {e}")
             return []
 
     async def get_model_info(self, model_id: str) -> Optional[LocalModel]:
@@ -151,13 +166,21 @@ class InventoryService:
             return False
 
     async def download_model(self, model_id: str, distribute: bool = False) -> dict:
+        self._get_config()
+
+        if not self.spark_docker_path:
+            return {
+                "success": False,
+                "message": "Spark docker path not configured. Please configure it in Settings.",
+            }
+
         try:
             download_script = self.spark_docker_path / "hf-download.sh"
 
             if not download_script.exists():
                 return {
                     "success": False,
-                    "message": f"Download script not found: {download_script}",
+                    "message": f"Download script not found: {download_script}. Please ensure the spark-vllm-docker repository is configured correctly.",
                 }
 
             revision_arg = ""
@@ -204,6 +227,15 @@ class InventoryService:
             }
 
     async def delete_model(self, model_id: str) -> dict:
+        self._get_config()
+
+        if not self.container_name:
+            return {
+                "success": False,
+                "message": "Docker container name not configured. Please configure it in Settings.",
+                "freed_space_gb": 0.0,
+            }
+
         try:
             model_path = (
                 Path(self.HF_CACHE_DIR) / f"models--{model_id.replace('/', '--')}"
@@ -278,13 +310,22 @@ class InventoryService:
             )
 
     async def distribute_model(self, model_id: str) -> dict:
+        self._get_config()
+
+        if not self.spark_docker_path:
+            return {
+                "success": False,
+                "message": "Spark docker path not configured. Please configure it in Settings.",
+                "distributed_to": [],
+            }
+
         try:
             distribute_script = self.spark_docker_path / "distribute-model.sh"
 
             if not distribute_script.exists():
                 return {
                     "success": False,
-                    "message": f"Distribute script not found: {distribute_script}",
+                    "message": f"Distribute script not found: {distribute_script}. Please ensure the spark-vllm-docker repository is configured correctly.",
                     "distributed_to": [],
                 }
 
