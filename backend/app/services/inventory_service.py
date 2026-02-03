@@ -47,6 +47,19 @@ class InventoryService:
             proc.returncode or 0,
         )
 
+    async def _run_local_command(self, cmd: str) -> tuple[str, str, int]:
+        proc = await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        return (
+            stdout.decode("utf-8", errors="replace"),
+            stderr.decode("utf-8", errors="replace"),
+            proc.returncode or 0,
+        )
+
     def _parse_model_id(self, model_path: str) -> str:
         return Path(model_path).name
 
@@ -73,19 +86,17 @@ class InventoryService:
     async def list_local_models(self) -> list[LocalModel]:
         self._get_config()
 
-        if not self.container_name:
-            logger.error("Docker container name not configured. Cannot list models.")
-            return []
-
         try:
             hf_cache_dir = self._get_hf_cache_dir()
             cmd = f"ls -la {hf_cache_dir} 2>/dev/null | tail -n +2"
-            stdout, stderr, returncode = await self._run_docker_command(cmd)
+
+            if hf_cache_dir.startswith("/home/") or hf_cache_dir.startswith("/root/"):
+                stdout, stderr, returncode = await self._run_local_command(cmd)
+            else:
+                stdout, stderr, returncode = await self._run_docker_command(cmd)
 
             if returncode != 0:
-                logger.warning(
-                    f"Failed to list models from container {self.container_name}: {stderr}"
-                )
+                logger.warning(f"Failed to list models from {hf_cache_dir}: {stderr}")
                 return []
 
             if not stdout.strip():
@@ -199,7 +210,11 @@ class InventoryService:
             full_cmd = " ".join(cmd_parts)
             full_cmd = f"nohup {full_cmd} > /tmp/hf-download.log 2>&1 & echo $! > {self.DOWNLOAD_PID_FILE}"
 
-            stdout, stderr, returncode = await self._run_docker_command(full_cmd)
+            hf_cache_dir = self._get_hf_cache_dir()
+            if hf_cache_dir.startswith("/home/") or hf_cache_dir.startswith("/root/"):
+                stdout, stderr, returncode = await self._run_local_command(full_cmd)
+            else:
+                stdout, stderr, returncode = await self._run_docker_command(full_cmd)
 
             if returncode != 0 and "nohup" not in stderr.lower():
                 return {
@@ -255,7 +270,11 @@ class InventoryService:
             size_before = self._get_file_size_gb(model_path)
 
             cmd = f"rm -rf {model_path}"
-            stdout, stderr, returncode = await self._run_docker_command(cmd)
+
+            if hf_cache_dir.startswith("/home/") or hf_cache_dir.startswith("/root/"):
+                stdout, stderr, returncode = await self._run_local_command(cmd)
+            else:
+                stdout, stderr, returncode = await self._run_docker_command(cmd)
 
             if returncode != 0:
                 return {
@@ -334,7 +353,12 @@ class InventoryService:
                 }
 
             cmd = f"{distribute_script} {model_id}"
-            stdout, stderr, returncode = await self._run_docker_command(cmd)
+
+            hf_cache_dir = self._get_hf_cache_dir()
+            if hf_cache_dir.startswith("/home/") or hf_cache_dir.startswith("/root/"):
+                stdout, stderr, returncode = await self._run_local_command(cmd)
+            else:
+                stdout, stderr, returncode = await self._run_docker_command(cmd)
 
             if returncode != 0:
                 return {
@@ -378,7 +402,12 @@ class InventoryService:
                 }
 
             cmd = f"kill {pid} 2>/dev/null; rm -f {self.DOWNLOAD_PID_FILE} {self.DOWNLOAD_STATUS_FILE}"
-            await self._run_docker_command(cmd)
+
+            hf_cache_dir = self._get_hf_cache_dir()
+            if hf_cache_dir.startswith("/home/") or hf_cache_dir.startswith("/root/"):
+                await self._run_local_command(cmd)
+            else:
+                await self._run_docker_command(cmd)
 
             return {
                 "success": True,
