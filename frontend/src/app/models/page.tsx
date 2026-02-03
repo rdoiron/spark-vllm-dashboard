@@ -141,7 +141,7 @@ export default function ModelsPage() {
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-1 min-h-0">
           <ErrorBoundary
             fallback={
               <Card>
@@ -162,7 +162,7 @@ export default function ModelsPage() {
           </ErrorBoundary>
         </div>
 
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 min-h-0">
           <ErrorBoundary
             fallback={
               <Card>
