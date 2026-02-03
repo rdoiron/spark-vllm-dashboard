@@ -172,46 +172,92 @@ class VLLMService:
             )
 
             pid_match = re.search(r"(\d+)", stdout)
-            if not pid_match:
-                logger.warning(
-                    "No PID found in output, checking host filesystem directly"
-                )
+            found_via_pid_file = False
+            pid = None
+
+            if pid_match:
+                pid = pid_match.group(1)
+                logger.info(f"Found PID from file: {pid}")
+
+                check_process_cmd = f"ps -p {pid} -o pid,etime 2>/dev/null | tail -n 1"
+                process_output, _, _ = await self._run_docker_command(check_process_cmd)
+
+                logger.info(f"Process check output: '{process_output}'")
+
+                if (
+                    process_output.strip()
+                    and "no such process" not in process_output.lower()
+                ):
+                    found_via_pid_file = True
+                    uptime = None
+                    uptime_match = re.search(r"(\d+-\d+:\d+|\d+:\d+)", process_output)
+                    if uptime_match:
+                        uptime = uptime_match.group(1)
+
+                    config = await self.get_running_config()
+
+                    port = int(self.vllm_port) if self.vllm_port else 8000
+                    return ModelStatus(
+                        running=True,
+                        model_id=config.model_id if config else None,
+                        uptime=uptime,
+                        port=port,
+                        message="vLLM model is running",
+                    )
+
+            logger.info("PID file method failed, trying alternative checks")
+
+            check_port_cmd = "ss -tlnp 2>/dev/null | grep ':8000' || netstat -tlnp 2>/dev/null | grep ':8000' || true"
+            port_output, _, _ = await self._run_docker_command(check_port_cmd)
+            logger.info(f"Port check output: '{port_output}'")
+
+            if "8000" in port_output:
+                logger.info("Port 8000 is listening, vLLM appears to be running")
+                config = await self.get_running_config()
                 return ModelStatus(
-                    running=False,
-                    message="No vLLM process running (PID file not found or empty)",
+                    running=True,
+                    model_id=config.model_id if config else None,
+                    uptime=None,
+                    port=8000,
+                    message="vLLM model is running (detected via port check)",
                 )
 
-            pid = pid_match.group(1)
-            logger.info(f"Found PID: {pid}")
+            check_pgrep_cmd = "pgrep -f 'vllm' || pgrep -f 'vllm serve' || true"
+            pgrep_output, _, _ = await self._run_docker_command(check_pgrep_cmd)
+            logger.info(f"pgrep output: '{pgrep_output}'")
 
-            check_process_cmd = f"ps -p {pid} -o pid,etime 2>/dev/null | tail -n 1"
-            process_output, _, _ = await self._run_docker_command(check_process_cmd)
-
-            logger.info(f"Process check output: '{process_output}'")
-
-            if (
-                not process_output.strip()
-                or "no such process" in process_output.lower()
-            ):
-                logger.warning(f"Process {pid} not found, checking host directly")
+            if pgrep_output.strip():
+                logger.info("vLLM process found via pgrep")
+                config = await self.get_running_config()
+                port = self.vllm_port if self.vllm_port else 8000
                 return ModelStatus(
-                    running=False,
-                    message="vLLM process is not running",
+                    running=True,
+                    model_id=config.model_id if config else None,
+                    uptime=None,
+                    port=port,
+                    message="vLLM model is running (detected via process check)",
                 )
 
-            uptime = None
-            uptime_match = re.search(r"(\d+-\d+:\d+|\d+:\d+)", process_output)
-            if uptime_match:
-                uptime = uptime_match.group(1)
+            check_log_cmd = f"tail -n 1 /tmp/vllm.log 2>/dev/null || echo ''"
+            log_output, _, _ = await self._run_docker_command(check_log_cmd)
+            logger.info(f"Log file check: '{log_output}'")
 
-            config = await self.get_running_config()
+            if log_output.strip() and "No such file" not in log_output:
+                logger.info("Log file exists and has content")
+                config = await self.get_running_config()
+                port = self.vllm_port if self.vllm_port else 8000
+                return ModelStatus(
+                    running=True,
+                    model_id=config.model_id if config else None,
+                    uptime=None,
+                    port=port,
+                    message="vLLM model may be running (log file exists)",
+                )
 
+            logger.warning("All checks failed, vLLM does not appear to be running")
             return ModelStatus(
-                running=True,
-                model_id=config.model_id if config else None,
-                uptime=uptime,
-                port=config.port if config else self.vllm_port,
-                message="vLLM model is running",
+                running=False,
+                message="No vLLM process running (PID file not found and no alternative detection methods succeeded)",
             )
 
         except Exception as e:
