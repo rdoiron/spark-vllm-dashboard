@@ -6,7 +6,6 @@ import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   LayoutDashboard,
   Box,
@@ -43,7 +42,7 @@ export function Sidebar({ className }: SidebarProps) {
 
   const sidebarContent = (
     <div className={cn("flex h-full flex-col bg-muted/10 transition-all duration-300", className)}>
-      <div className={cn("flex h-16 items-center border-b px-4 transition-all", collapsed ? "justify-center px-2" : "px-6")}>
+      <div className={cn("flex h-16 shrink-0 items-center border-b px-4 transition-all", collapsed ? "justify-center px-2" : "px-6")}>
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary transition-fast hover:scale-105">
             <User className="h-4 w-4 text-primary-foreground" />
@@ -53,8 +52,8 @@ export function Sidebar({ className }: SidebarProps) {
           )}
         </div>
       </div>
-      <ScrollArea className="flex-1 px-2 py-4">
-        <nav className="flex flex-col gap-1">
+      <nav className="flex-1 overflow-y-auto px-2 py-4">
+        <div className="flex flex-col gap-1">
           {navigation.map((item) => {
             const isActive = pathname === item.href
             return (
@@ -76,9 +75,9 @@ export function Sidebar({ className }: SidebarProps) {
               </Link>
             )
           })}
-        </nav>
-      </ScrollArea>
-      <div className={cn("border-t p-4 transition-all", collapsed ? "px-2 text-center" : "")}>
+        </div>
+      </nav>
+      <div className={cn("border-t p-4 transition-all shrink-0", collapsed ? "px-2 text-center" : "")}>
         {!collapsed && (
           <div className="text-xs text-muted-foreground">
             <p>v1.0.0</p>
