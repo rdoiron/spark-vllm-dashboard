@@ -34,19 +34,28 @@ class LogService:
         self.container_name = container_name or self.CONTAINER_NAME
 
     def _parse_log_line(self, line: str) -> ParsedLogEntry:
-        timestamp_pattern = (
-            r"(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)"
-        )
+        original_line = line
+        line = line.strip()
+
+        timestamp_patterns = [
+            r"(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)",
+            r"(\d{2}-\d{2} \d{2}:\d{2}:\d{2})",
+        ]
+
         level_pattern = r"(DEBUG|INFO|WARNING|ERROR|CRITICAL)"
 
-        timestamp_match = re.search(timestamp_pattern, line)
+        timestamp = datetime.utcnow().isoformat() + "Z"
+        for pattern in timestamp_patterns:
+            match = re.search(pattern, line)
+            if match:
+                timestamp = match.group(1)
+                if pattern == timestamp_patterns[0]:
+                    pass
+                else:
+                    timestamp = f"2026-{match.group(1)}"
+                break
+
         level_match = re.search(level_pattern, line, re.IGNORECASE)
-
-        if timestamp_match:
-            timestamp = timestamp_match.group(1)
-        else:
-            timestamp = datetime.utcnow().isoformat() + "Z"
-
         if level_match:
             level_str = level_match.group(1).upper()
             try:
@@ -57,25 +66,28 @@ class LogService:
             level = LogLevel.INFO
 
         message_start = 0
-        if timestamp_match:
-            message_start = timestamp_match.end()
+        for pattern in timestamp_patterns:
+            match = re.search(pattern, line)
+            if match:
+                message_start = match.end()
+                break
+
+        level_match = re.search(level_pattern, line, re.IGNORECASE)
         if level_match:
             message_start = max(message_start, level_match.end())
 
         message = line[message_start:].strip()
-        if message.startswith(":"):
-            message = message[1:].strip()
-        elif message.startswith(" - "):
-            message = message[3:].strip()
+
+        message = re.sub(r"^[\s:\-]+", "", message)
 
         if not message:
-            message = line.strip()
+            message = line
 
         return ParsedLogEntry(
             timestamp=timestamp,
             level=level,
             message=message,
-            raw_line=line.strip(),
+            raw_line=original_line.strip(),
         )
 
     async def _run_docker_exec(self, cmd: list[str]) -> asyncio.subprocess.Process:
@@ -114,87 +126,94 @@ class LogService:
         logger.info(f"Parsed {len(lines_list)} raw log lines")
         return [self._parse_log_line(line) for line in lines_list if line.strip()]
 
+    async def get_log_file_content(self) -> bytes:
+        cmd = ["cat", self.LOG_FILE]
+        proc = await self._run_docker_exec(cmd)
+
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            error_msg = stderr.decode("utf-8", errors="replace")
+            logger.error(f"Failed to read log file: {error_msg}")
+            raise RuntimeError(f"Failed to read log file: {error_msg}")
+
+        content = stdout
+        logger.info(
+            f"Log file content: {len(content)} bytes, {content.count(chr(10))} lines"
+        )
+        if content:
+            logger.info(
+                f"First line: {content.decode('utf-8', errors='replace').split(chr(10))[0][:100]}"
+            )
+        else:
+            logger.warning("Log file is empty")
+
+        return content
+
     async def stream_logs(
         self, delay: float = 0.5
     ) -> AsyncGenerator[ParsedLogEntry, None]:
-        proc = None
+        logger.info(f"Starting log stream from {self.LOG_FILE}")
+
         try:
-            logger.info(f"Starting log stream from {self.LOG_FILE}")
-            cmd = ["tail", "-f", self.LOG_FILE]
-            proc = await self._run_docker_exec(cmd)
-            logger.info(f"tail process started with returncode={proc.returncode}")
+            content = await self.get_log_file_content()
+            if not content:
+                logger.warning("Log file is empty, will wait for new content")
 
-            if proc.returncode != 0:
-                stderr = b""
-                try:
-                    _, stderr = await proc.communicate()
-                except Exception as e:
-                    logger.warning(f"Error communicating with tail process: {e}")
-                error_msg = (
-                    stderr.decode("utf-8", errors="replace").strip()
-                    or "Unknown Docker error"
+            logger.info("Starting tail process for real-time updates")
+
+            proc = await asyncio.create_subprocess_exec(
+                "docker",
+                "exec",
+                self.container_name,
+                "tail",
+                "-f",
+                self.LOG_FILE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            logger.info(f"tail process started with PID={proc.pid}")
+
+            if content:
+                lines = content.decode("utf-8", errors="replace").splitlines()
+                for line in lines:
+                    if line.strip():
+                        yield self._parse_log_line(line)
+                logger.info(
+                    f"Yielded {len(lines)} historical log lines, now waiting for new content"
                 )
-                logger.error(f"Docker command failed: {error_msg}")
-                raise RuntimeError(f"Docker command failed: {error_msg}")
 
-            logger.info("Reading log lines from tail output")
             stdout = proc.stdout
-            line_count = 0
+            stderr = proc.stderr
             empty_reads = 0
-            max_empty_reads = 10
+            max_empty_reads = 30
 
-            while stdout and True:
-                line = await stdout.readline()
-                if not line:
-                    empty_reads += 1
-                    if empty_reads >= max_empty_reads:
-                        logger.warning(
-                            f"No log output for {max_empty_reads} consecutive reads, stopping stream"
-                        )
-                        break
-                    continue
+            read_task = None
 
-                empty_reads = 0
-                decoded_line = line.decode("utf-8", errors="replace").strip()
-                if not decoded_line:
-                    continue
-
-                line_count += 1
-                if line_count <= 5:
-                    logger.info(f"Log line #{line_count}: {decoded_line[:100]}")
-
+            while True:
                 try:
-                    parsed = self._parse_log_line(decoded_line)
-                    yield parsed
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to parse log line: {decoded_line[:50]}... Error: {e}"
-                    )
-                    yield ParsedLogEntry(
-                        timestamp=datetime.utcnow().isoformat() + "Z",
-                        level=LogLevel.INFO,
-                        message=decoded_line,
-                        raw_line=decoded_line,
-                    )
+                    line = await asyncio.wait_for(stdout.readline(), timeout=5.0)
+                    if not line:
+                        empty_reads += 1
+                        if empty_reads >= max_empty_reads:
+                            logger.warning(
+                                f"No log output for {max_empty_reads} reads, stopping stream"
+                            )
+                            break
+                        continue
 
-            logger.info(f"Log stream ended after {line_count} lines")
+                    empty_reads = 0
+                    decoded_line = line.decode("utf-8", errors="replace").strip()
+                    if decoded_line:
+                        yield self._parse_log_line(decoded_line)
 
-        except asyncio.CancelledError:
-            logger.info("Log stream cancelled")
-            raise
-        except RuntimeError:
-            raise
+                except asyncio.TimeoutError:
+                    logger.debug("Timeout waiting for log line, continuing...")
+                    continue
+
         except Exception as e:
             logger.exception(f"Error in log streaming: {e}")
             raise RuntimeError(f"Failed to stream logs: {str(e)}")
-        finally:
-            if proc:
-                try:
-                    proc.terminate()
-                    await proc.wait()
-                    logger.info("tail process terminated")
-                except Exception as e:
-                    logger.warning(f"Error terminating tail process: {e}")
 
     async def get_log_file_content(self) -> bytes:
         cmd = ["cat", self.LOG_FILE]
