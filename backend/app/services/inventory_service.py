@@ -125,6 +125,7 @@ class InventoryService:
                 if not model_path.startswith("models--"):
                     continue
 
+                model_id = model_path.replace("models--", "").replace("--", "/")
                 hf_cache_dir = self._get_hf_cache_dir()
                 full_path = Path(hf_cache_dir) / model_path
                 size_gb = self._get_file_size_gb(full_path)
