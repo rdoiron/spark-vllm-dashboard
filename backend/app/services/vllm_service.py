@@ -159,25 +159,41 @@ class VLLMService:
 
     async def get_model_status(self) -> ModelStatus:
         try:
+            self._get_config()
+            logger.info(
+                f"Checking model status with container_name={self.container_name}"
+            )
+
             check_pid_cmd = f"cat {VLLM_PID_FILE} 2>/dev/null"
-            stdout, _, returncode = await self._run_docker_command(check_pid_cmd)
+            stdout, stderr, returncode = await self._run_docker_command(check_pid_cmd)
+
+            logger.info(
+                f"PID file check: stdout='{stdout}', stderr='{stderr}', returncode={returncode}"
+            )
 
             pid_match = re.search(r"(\d+)", stdout)
             if not pid_match:
+                logger.warning(
+                    "No PID found in output, checking host filesystem directly"
+                )
                 return ModelStatus(
                     running=False,
-                    message="No vLLM process running",
+                    message="No vLLM process running (PID file not found or empty)",
                 )
 
             pid = pid_match.group(1)
+            logger.info(f"Found PID: {pid}")
 
             check_process_cmd = f"ps -p {pid} -o pid,etime 2>/dev/null | tail -n 1"
             process_output, _, _ = await self._run_docker_command(check_process_cmd)
+
+            logger.info(f"Process check output: '{process_output}'")
 
             if (
                 not process_output.strip()
                 or "no such process" in process_output.lower()
             ):
+                logger.warning(f"Process {pid} not found, checking host directly")
                 return ModelStatus(
                     running=False,
                     message="vLLM process is not running",
