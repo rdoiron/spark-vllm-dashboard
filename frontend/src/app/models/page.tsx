@@ -144,7 +144,7 @@ export default function ModelsPage() {
         <div className="lg:col-span-1">
           <ErrorBoundary
             fallback={
-              <Card className="h-full">
+              <Card>
                 <CardHeader>
                   <CardTitle>Model Status</CardTitle>
                   <CardDescription>Unable to load model status</CardDescription>
@@ -165,7 +165,7 @@ export default function ModelsPage() {
         <div className="lg:col-span-2">
           <ErrorBoundary
             fallback={
-              <Card className="h-full">
+              <Card>
                 <CardHeader>
                   <CardTitle>Launch Form</CardTitle>
                   <CardDescription>Unable to load launch form</CardDescription>
