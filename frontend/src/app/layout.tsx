@@ -23,9 +23,9 @@ export default function RootLayout({
         <Providers>
           <div className="flex h-screen overflow-hidden">
             <Sidebar />
-            <div className="flex flex-1 flex-col overflow-hidden">
+            <div className="flex flex-1 flex-col">
               <Header />
-              <main className="flex-1 overflow-y-auto bg-muted/5 p-4 md:p-6 scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent">
+              <main className="flex-1 overflow-auto bg-muted/5 p-4 md:p-6 scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent">
                 {children}
               </main>
             </div>
