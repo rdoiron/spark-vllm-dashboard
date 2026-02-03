@@ -124,70 +124,82 @@ async def logs_websocket(websocket: WebSocket):
     await websocket.accept()
     logger.info("WebSocket connection established for log streaming")
 
+    is_vllm_running = False
     try:
         status_result = await vllm_service.get_model_status()
+        is_vllm_running = status_result.running
         logger.info(
             f"Model status check: running={status_result.running}, message={status_result.message}"
         )
     except Exception as e:
         logger.exception(f"Error checking model status: {e}")
-        error_msg = f"Failed to check vLLM status: {str(e)}"
-        await websocket.send_json(
-            {
-                "error": error_msg,
-                "error_type": "status_check_failed",
-                "timestamp": datetime.utcnow().isoformat() + "Z",
-            }
-        )
-        await websocket.close()
-        return
 
-    if not status_result.running:
-        logger.warning("vLLM is not running, closing WebSocket connection")
-        await websocket.send_json(
-            {
-                "error": "vLLM is not currently running",
-                "error_type": "vllm_not_running",
-                "timestamp": datetime.utcnow().isoformat() + "Z",
-            }
-        )
-        await websocket.close()
-        return
-
-    logger.info("vLLM is running, starting log stream")
-    try:
-        log_count = 0
-        async for log_entry in log_service.stream_logs():
-            log_count += 1
-            if log_count <= 5 or log_count % 100 == 0:
-                logger.debug(f"Streaming log #{log_count}: {log_entry.message[:50]}...")
-            message = LogStreamMessage(
-                timestamp=log_entry.timestamp,
-                level=log_entry.level.value,
-                message=log_entry.message,
-                raw_line=log_entry.raw_line,
-            )
-            await websocket.send_json(message.model_dump())
-
-        logger.info(f"Log stream ended after {log_count} entries")
-    except WebSocketDisconnect:
-        logger.info("WebSocket connection closed for log streaming")
-    except asyncio.CancelledError:
-        logger.info("WebSocket connection cancelled for log streaming")
-    except Exception as e:
-        logger.exception(f"Unexpected error in log WebSocket: {e}")
+    if is_vllm_running:
+        logger.info("vLLM is running, starting log stream")
         try:
+            async for log_entry in log_service.stream_logs():
+                message = LogStreamMessage(
+                    timestamp=log_entry.timestamp,
+                    level=log_entry.level.value,
+                    message=log_entry.message,
+                    raw_line=log_entry.raw_line,
+                )
+                await websocket.send_json(message.model_dump())
+        except WebSocketDisconnect:
+            logger.info("WebSocket connection closed for log streaming")
+        except asyncio.CancelledError:
+            logger.info("WebSocket connection cancelled for log streaming")
+        except Exception as e:
+            logger.exception(f"Error streaming logs: {e}")
+            try:
+                await websocket.send_json(
+                    {
+                        "error": str(e),
+                        "error_type": "streaming_error",
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                    }
+                )
+            except Exception:
+                pass
+        finally:
+            try:
+                await websocket.close()
+            except Exception:
+                pass
+    else:
+        logger.info("vLLM not running, sending historical logs only")
+        try:
+            logs = await log_service.get_recent_logs(lines=100)
+            logger.info(f"Retrieved {len(logs)} historical log entries")
+            for log_entry in logs:
+                message = LogStreamMessage(
+                    timestamp=log_entry.timestamp,
+                    level=log_entry.level.value,
+                    message=log_entry.message,
+                    raw_line=log_entry.raw_line,
+                )
+                await websocket.send_json(message.model_dump())
             await websocket.send_json(
                 {
-                    "error": str(e),
-                    "error_type": "streaming_error",
+                    "error": "vLLM is not currently running - showing historical logs only",
+                    "error_type": "vllm_not_running",
                     "timestamp": datetime.utcnow().isoformat() + "Z",
                 }
             )
-        except Exception:
-            pass
-    finally:
-        try:
-            await websocket.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.exception(f"Error retrieving historical logs: {e}")
+            try:
+                await websocket.send_json(
+                    {
+                        "error": str(e),
+                        "error_type": "historical_logs_error",
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                    }
+                )
+            except Exception:
+                pass
+        finally:
+            try:
+                await websocket.close()
+            except Exception:
+                pass
