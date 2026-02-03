@@ -1,9 +1,13 @@
 import asyncio
 import re
+import logging
 from datetime import datetime
 from typing import AsyncGenerator, Optional
 from dataclasses import dataclass
 from enum import Enum
+
+
+logger = logging.getLogger(__name__)
 
 
 class LogLevel(Enum):
@@ -64,6 +68,9 @@ class LogService:
         elif message.startswith(" - "):
             message = message[3:].strip()
 
+        if not message:
+            message = line.strip()
+
         return ParsedLogEntry(
             timestamp=timestamp,
             level=level,
@@ -80,21 +87,31 @@ class LogService:
         )
 
     async def get_recent_logs(self, lines: int = 100) -> list[ParsedLogEntry]:
-        cmd = ["tail", "-n", str(lines), "-f", self.LOG_FILE]
+        cmd = ["tail", "-n", str(lines), self.LOG_FILE]
         proc = await self._run_docker_exec(cmd)
 
         output = b""
         try:
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5.0)
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10.0)
             output = stdout
+            if proc.returncode != 0 and stderr:
+                logger.warning(
+                    f"tail command stderr: {stderr.decode('utf-8', errors='replace')}"
+                )
         except asyncio.TimeoutError:
+            logger.warning("Timeout reading log file")
             proc.terminate()
             try:
                 await proc.wait()
             except Exception:
                 pass
 
+        if not output:
+            logger.info("No log output received")
+            return []
+
         lines_list = output.decode("utf-8", errors="replace").splitlines()
+        logger.info(f"Parsed {len(lines_list)} raw log lines")
         return [self._parse_log_line(line) for line in lines_list if line.strip()]
 
     async def stream_logs(
