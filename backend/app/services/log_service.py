@@ -105,6 +105,18 @@ class LogService:
             cmd = ["tail", "-f", self.LOG_FILE]
             proc = await self._run_docker_exec(cmd)
 
+            if proc.returncode != 0:
+                stderr = b""
+                try:
+                    _, stderr = await proc.communicate()
+                except Exception:
+                    pass
+                error_msg = (
+                    stderr.decode("utf-8", errors="replace").strip()
+                    or "Unknown Docker error"
+                )
+                raise RuntimeError(f"Docker command failed: {error_msg}")
+
             stdout = proc.stdout
             while stdout and True:
                 line = await stdout.readline()
@@ -117,6 +129,11 @@ class LogService:
 
         except asyncio.CancelledError:
             raise
+        except RuntimeError:
+            raise
+        except Exception as e:
+            logger.exception(f"Error in log streaming: {e}")
+            raise RuntimeError(f"Failed to stream logs: {str(e)}")
         finally:
             if proc:
                 try:

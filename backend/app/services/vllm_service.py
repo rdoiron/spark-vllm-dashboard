@@ -27,6 +27,12 @@ class VLLMService:
         self.spark_docker_path = config_service.get_spark_docker_path()
 
     async def _run_docker_command(self, cmd: str) -> tuple[str, str, int]:
+        self._get_config()
+        if not self.container_name:
+            raise RuntimeError(
+                "Container name not configured. Please set container_name in settings."
+            )
+
         full_cmd = f"docker exec {self.container_name} sh -c '{cmd}'"
         logger.info(f"Running Docker command: {full_cmd}")
 

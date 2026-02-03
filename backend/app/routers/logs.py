@@ -124,11 +124,26 @@ async def logs_websocket(websocket: WebSocket):
     await websocket.accept()
     logger.info("WebSocket connection established for log streaming")
 
-    status_result = await vllm_service.get_model_status()
+    try:
+        status_result = await vllm_service.get_model_status()
+    except Exception as e:
+        logger.exception(f"Error checking model status: {e}")
+        error_msg = f"Failed to check vLLM status: {str(e)}"
+        await websocket.send_json(
+            {
+                "error": error_msg,
+                "error_type": "status_check_failed",
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+            }
+        )
+        await websocket.close()
+        return
+
     if not status_result.running:
         await websocket.send_json(
             {
                 "error": "vLLM is not currently running",
+                "error_type": "vllm_not_running",
                 "timestamp": datetime.utcnow().isoformat() + "Z",
             }
         )
@@ -155,6 +170,7 @@ async def logs_websocket(websocket: WebSocket):
             await websocket.send_json(
                 {
                     "error": str(e),
+                    "error_type": "streaming_error",
                     "timestamp": datetime.utcnow().isoformat() + "Z",
                 }
             )
