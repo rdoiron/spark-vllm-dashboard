@@ -119,32 +119,68 @@ class LogService:
     ) -> AsyncGenerator[ParsedLogEntry, None]:
         proc = None
         try:
+            logger.info(f"Starting log stream from {self.LOG_FILE}")
             cmd = ["tail", "-f", self.LOG_FILE]
             proc = await self._run_docker_exec(cmd)
+            logger.info(f"tail process started with returncode={proc.returncode}")
 
             if proc.returncode != 0:
                 stderr = b""
                 try:
                     _, stderr = await proc.communicate()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Error communicating with tail process: {e}")
                 error_msg = (
                     stderr.decode("utf-8", errors="replace").strip()
                     or "Unknown Docker error"
                 )
+                logger.error(f"Docker command failed: {error_msg}")
                 raise RuntimeError(f"Docker command failed: {error_msg}")
 
+            logger.info("Reading log lines from tail output")
             stdout = proc.stdout
+            line_count = 0
+            empty_reads = 0
+            max_empty_reads = 10
+
             while stdout and True:
                 line = await stdout.readline()
                 if not line:
-                    break
+                    empty_reads += 1
+                    if empty_reads >= max_empty_reads:
+                        logger.warning(
+                            f"No log output for {max_empty_reads} consecutive reads, stopping stream"
+                        )
+                        break
+                    continue
 
+                empty_reads = 0
                 decoded_line = line.decode("utf-8", errors="replace").strip()
-                if decoded_line:
-                    yield self._parse_log_line(decoded_line)
+                if not decoded_line:
+                    continue
+
+                line_count += 1
+                if line_count <= 5:
+                    logger.info(f"Log line #{line_count}: {decoded_line[:100]}")
+
+                try:
+                    parsed = self._parse_log_line(decoded_line)
+                    yield parsed
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to parse log line: {decoded_line[:50]}... Error: {e}"
+                    )
+                    yield ParsedLogEntry(
+                        timestamp=datetime.utcnow().isoformat() + "Z",
+                        level=LogLevel.INFO,
+                        message=decoded_line,
+                        raw_line=decoded_line,
+                    )
+
+            logger.info(f"Log stream ended after {line_count} lines")
 
         except asyncio.CancelledError:
+            logger.info("Log stream cancelled")
             raise
         except RuntimeError:
             raise
@@ -156,8 +192,9 @@ class LogService:
                 try:
                     proc.terminate()
                     await proc.wait()
-                except Exception:
-                    pass
+                    logger.info("tail process terminated")
+                except Exception as e:
+                    logger.warning(f"Error terminating tail process: {e}")
 
     async def get_log_file_content(self) -> bytes:
         cmd = ["cat", self.LOG_FILE]
