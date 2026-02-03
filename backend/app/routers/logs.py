@@ -126,6 +126,9 @@ async def logs_websocket(websocket: WebSocket):
 
     try:
         status_result = await vllm_service.get_model_status()
+        logger.info(
+            f"Model status check: running={status_result.running}, message={status_result.message}"
+        )
     except Exception as e:
         logger.exception(f"Error checking model status: {e}")
         error_msg = f"Failed to check vLLM status: {str(e)}"
@@ -140,6 +143,7 @@ async def logs_websocket(websocket: WebSocket):
         return
 
     if not status_result.running:
+        logger.warning("vLLM is not running, closing WebSocket connection")
         await websocket.send_json(
             {
                 "error": "vLLM is not currently running",
@@ -150,8 +154,13 @@ async def logs_websocket(websocket: WebSocket):
         await websocket.close()
         return
 
+    logger.info("vLLM is running, starting log stream")
     try:
+        log_count = 0
         async for log_entry in log_service.stream_logs():
+            log_count += 1
+            if log_count <= 5 or log_count % 100 == 0:
+                logger.debug(f"Streaming log #{log_count}: {log_entry.message[:50]}...")
             message = LogStreamMessage(
                 timestamp=log_entry.timestamp,
                 level=log_entry.level.value,
@@ -160,6 +169,7 @@ async def logs_websocket(websocket: WebSocket):
             )
             await websocket.send_json(message.model_dump())
 
+        logger.info(f"Log stream ended after {log_count} entries")
     except WebSocketDisconnect:
         logger.info("WebSocket connection closed for log streaming")
     except asyncio.CancelledError:
