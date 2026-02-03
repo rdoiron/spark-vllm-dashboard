@@ -44,7 +44,7 @@ export function useLogStream(
   const maxReconnectAttempts = 5
 
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
+    if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
       return
     }
 
@@ -59,11 +59,27 @@ export function useLogStream(
 
     ws.onmessage = (event) => {
       try {
-        const data: LogEntry = JSON.parse(event.data)
-        setCurrent(data)
+        const data = JSON.parse(event.data)
+        
+        if (data.error) {
+          console.error("Server error:", data.error, data.error_type)
+          setConnectionError(data.error)
+          if (onError) {
+            onError(data.error)
+          }
+          return
+        }
+        
+        const logEntry: LogEntry = {
+          timestamp: data.timestamp,
+          level: data.level,
+          message: data.message,
+          raw_line: data.raw_line,
+        }
+        setCurrent(logEntry)
 
         setHistory((prev) => {
-          const newHistory = [...prev, data]
+          const newHistory = [...prev, logEntry]
           if (newHistory.length > maxBufferSize) {
             return newHistory.slice(-maxBufferSize)
           }
