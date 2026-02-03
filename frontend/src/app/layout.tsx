@@ -18,14 +18,14 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className="scrollbar-thin">
+    <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <Providers>
-          <div className="flex h-screen">
+          <div className="flex h-screen overflow-hidden">
             <Sidebar />
             <div className="flex flex-1 flex-col">
               <Header />
-              <main className="flex-1 bg-muted/5 p-4 md:p-6">
+              <main className="flex-1 overflow-auto bg-muted/5 p-4 md:p-6 scrollbar-thin">
                 {children}
               </main>
             </div>
